@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'core/app_config.dart';
+import 'core/app_theme.dart';
 import 'core/theme_notifier.dart';
 import 'features/authentication/repository/auth_repository.dart';
 import 'features/authentication/viewmodel/auth_viewmodel.dart';
@@ -11,25 +13,34 @@ import 'features/home/viewmodel/history_viewmodel.dart';
 import 'features/transcribe/repository/transcribe_repository.dart';
 import 'features/transcribe/viewmodel/transcribe_viewmodel.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final TranscribeRepository transcribeRepository =
-      TranscribeRepository(backendWsUrl: backendWsUrl);
+  
+  // Set system UI overlay style
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+    ),
+  );
+
   final authRepository = AuthRepository();
   final historyRepository = HistoryRepository();
+  final transcribeRepository = TranscribeRepository(backendWsUrl: backendWsUrl);
+
+  final authVM = AuthViewModel(authRepository);
+  await authVM.restoreSession();
+  final historyVM = HistoryViewModel(historyRepository, authVM);
+  final transcribeVM = TranscribeViewModel(transcribeRepository, authVM, historyVM);
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeNotifier()),
-        ChangeNotifierProvider(create: (_) => AuthViewModel(authRepository)),
-        ChangeNotifierProvider(
-          create: (context) => HistoryViewModel(
-            historyRepository,
-            context.read<AuthViewModel>(),
-          ),
-        ),
-        ChangeNotifierProvider(create: (_) => TranscribeViewModel(transcribeRepository)),
+        ChangeNotifierProvider.value(value: authVM),
+        ChangeNotifierProvider.value(value: historyVM),
+        ChangeNotifierProvider.value(value: transcribeVM),
       ],
       child: const MyApp(),
     ),
@@ -42,21 +53,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeNotifier themeNotifier = context.watch<ThemeNotifier>();
-    const Color seed = Colors.indigo;
+    
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Voice Transcribe',
+      title: 'VoiceAI',
       themeMode: themeNotifier.mode,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.light),
-        fontFamily: 'Roboto',
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark),
-        fontFamily: 'Roboto',
-      ),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
       home: const HomeView(),
     );
   }

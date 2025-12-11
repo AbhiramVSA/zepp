@@ -7,16 +7,18 @@ import 'package:flutter_sound/flutter_sound.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/status.dart' as ws_status;
+import 'package:http/http.dart' as http;
 
-import '../../../core/app_config.dart';
+import '../../../core/app_config.dart' as config;
 
 /// Handles audio capture and WebSocket streaming to the backend.
 class TranscribeRepository {
   // For Android emulators, host loopback is 10.0.2.2
-  TranscribeRepository({String? backendWsUrl})
-      : backendWsUrl = backendWsUrl ?? appBackendWsUrl;
+    TranscribeRepository({String? backendWsUrl})
+      : backendWsUrl = backendWsUrl ?? config.backendWsUrl;
 
-  final String backendWsUrl;
+    final String backendWsUrl;
+    String? _authToken;
 
     final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
     final StreamController<Uint8List> _pcmController =
@@ -25,11 +27,15 @@ class TranscribeRepository {
       StreamController<String>.broadcast();
 
   IOWebSocketChannel? _channel;
-    StreamSubscription<Uint8List>? _pcmSubscription;
+  StreamSubscription<Uint8List>? _pcmSubscription;
   StreamSubscription<dynamic>? _wsSubscription;
   bool _isInitialized = false;
 
   Stream<String> get transcriptionStream => _transcriptionController.stream;
+
+  void setAuthToken(String? token) {
+    _authToken = token;
+  }
 
   Future<void> _ensureInitialized() async {
     if (_isInitialized) return;
@@ -40,7 +46,11 @@ class TranscribeRepository {
 
   Future<void> connectWebSocket() async {
     await closeWebSocket();
-    _channel = IOWebSocketChannel.connect(Uri.parse(backendWsUrl));
+    final uri = Uri.parse(backendWsUrl);
+    _channel = IOWebSocketChannel.connect(
+      uri,
+      headers: _authToken != null ? {'Authorization': 'Bearer $_authToken'} : null,
+    );
     _wsSubscription = _channel!.stream.listen(
       _handleWsMessage,
       onError: (Object err, [StackTrace? st]) {
@@ -124,6 +134,8 @@ class TranscribeRepository {
 
       if (text != null) {
         _transcriptionController.add(text);
+        // Fire-and-forget persist if authenticated
+        unawaited(_persistTranscript(text));
       } else if (error != null) {
         _transcriptionController.addError(error);
       } else {
@@ -141,6 +153,59 @@ class TranscribeRepository {
     await _pcmController.close();
     await _transcriptionController.close();
     _isInitialized = false;
+  }
+
+  Future<void> _persistTranscript(String text) async {
+    if (kDebugMode) {
+      // ignore: avoid_print
+      print('DEBUG: _persistTranscript called with text: "${text.substring(0, text.length > 50 ? 50 : text.length)}..."');
+      print('DEBUG: authToken is ${_authToken == null ? 'NULL' : (_authToken!.isEmpty ? 'EMPTY' : 'SET (${_authToken!.length} chars)')}');
+    }
+    if (_authToken == null || _authToken!.isEmpty) {
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('DEBUG: No auth token, skipping persist');
+      }
+      return;
+    }
+    final uri = Uri.parse('${config.backendBaseUrl}/transcripts/');
+    if (kDebugMode) {
+      // ignore: avoid_print
+      print('DEBUG: POST to $uri');
+    }
+    try {
+      final response = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $_authToken',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'text': text}),
+      );
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('DEBUG: Response status: ${response.statusCode}');
+        print('DEBUG: Response body: ${response.body}');
+      }
+      if (response.statusCode >= 400) {
+        if (kDebugMode) {
+          // ignore: avoid_print
+          print('Persist transcript failed: ${response.statusCode} ${response.body}');
+        }
+      } else {
+        if (kDebugMode) {
+          // ignore: avoid_print
+          print('Transcript saved successfully');
+        }
+      }
+    } catch (e, st) {
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('Persist transcript exception: $e');
+        print('Stack trace: $st');
+      }
+    }
   }
 }
 

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../../../core/theme_notifier.dart';
-import '../../authentication/viewmodel/auth_viewmodel.dart';
+import '../../../core/app_theme.dart';
+import '../../../core/widgets/glass_widgets.dart';
 import '../viewmodel/history_viewmodel.dart';
 
 class HistoryView extends StatefulWidget {
@@ -24,147 +25,286 @@ class _HistoryViewState extends State<HistoryView> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final theme = context.read<ThemeNotifier>();
-    final mode = context.watch<ThemeNotifier>().mode;
+    return Consumer<HistoryViewModel>(
+      builder: (context, vm, _) {
+        if (vm.state == HistoryState.loading) {
+          return _buildLoadingState(context);
+        }
+        if (vm.state == HistoryState.unauthenticated) {
+          return _buildEmptyState(
+            context,
+            icon: Icons.lock_outline_rounded,
+            title: 'Sign in required',
+            message: 'Sign in to see your transcripts.',
+          );
+        }
+        if (vm.state == HistoryState.error) {
+          return _buildEmptyState(
+            context,
+            icon: Icons.error_outline_rounded,
+            title: 'Oops!',
+            message: vm.error ?? 'Failed to load history',
+            isError: true,
+          );
+        }
+        if (vm.items.isEmpty) {
+          return _buildEmptyState(
+            context,
+            icon: Icons.mic_none_rounded,
+            title: 'No transcripts yet',
+            message: 'Your transcripts will appear here.',
+          );
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('History'),
-        actions: [
-          IconButton(
-            tooltip: 'Toggle theme',
-            icon: Icon(mode == ThemeMode.dark ? Icons.light_mode : Icons.dark_mode),
-            onPressed: theme.toggle,
+        return RefreshIndicator(
+          onRefresh: () => vm.load(refresh: true),
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            itemCount: vm.items.length,
+            itemBuilder: (context, index) {
+              final item = vm.items[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _TranscriptCard(
+                  text: item.text,
+                  createdAt: item.createdAt,
+                  confidence: item.confidence,
+                  durationSeconds: item.durationSeconds,
+                )
+                    .animate()
+                    .fadeIn(
+                      delay: Duration(milliseconds: index * 50),
+                      duration: 400.ms,
+                    )
+                    .slideY(begin: 0.1, end: 0),
+              );
+            },
           ),
-          Consumer<AuthViewModel>(
-            builder: (context, auth, _) => IconButton(
-              tooltip: 'Log out',
-              icon: const Icon(Icons.logout),
-              onPressed: auth.isAuthenticated ? auth.logout : null,
+        );
+      },
+    );
+  }
+
+  Widget _buildLoadingState(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: AppColors.primaryGradient,
+              shape: BoxShape.circle,
             ),
-          ),
+            child: const SizedBox(
+              width: 30,
+              height: 30,
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 3,
+              ),
+            ),
+          ).animate().scale(duration: 300.ms),
+          const SizedBox(height: 20),
+          Text(
+            'Loading your transcripts...',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+          ).animate().fadeIn(delay: 200.ms),
         ],
       ),
-      body: Consumer<HistoryViewModel>(
-        builder: (context, vm, _) {
-          if (vm.state == HistoryState.loading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (vm.state == HistoryState.unauthenticated) {
-            return _CenteredMessage(
-              icon: Icons.lock_outline,
-              message: 'Sign in to see your transcripts.',
-              colors: colors,
-            );
-          }
-          if (vm.state == HistoryState.error) {
-            return _CenteredMessage(
-              icon: Icons.error_outline,
-              message: vm.error ?? 'Failed to load history',
-              colors: colors,
-            );
-          }
-          if (vm.items.isEmpty) {
-            return _CenteredMessage(
-              icon: Icons.mic_none,
-              message: 'No transcripts yet.',
-              colors: colors,
-            );
-          }
+    );
+  }
 
-          return RefreshIndicator(
-            onRefresh: () => vm.load(refresh: true),
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              itemBuilder: (context, index) {
-                final item = vm.items[index];
-                final timestamp = DateFormat.yMMMd().add_jm().format(item.createdAt.toLocal());
-                final subtitle = [
-                  if (item.confidence != null) 'Confidence ${(item.confidence! * 100).toStringAsFixed(1)}%',
-                  if (item.durationSeconds != null) 'Duration ${item.durationSeconds!.toStringAsFixed(1)}s',
-                ].join(' · ');
+  Widget _buildEmptyState(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String message,
+    bool isError = false,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final vm = context.read<HistoryViewModel>();
 
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    gradient: LinearGradient(
-                      colors: [
-                        colors.surfaceVariant.withOpacity(0.7),
-                        colors.surfaceVariant.withOpacity(0.45),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border: Border.all(color: colors.outline.withOpacity(0.25)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colors.shadow.withOpacity(0.08),
-                        blurRadius: 14,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                gradient: isError
+                    ? LinearGradient(
+                        colors: [AppColors.error, AppColors.error.withOpacity(0.7)],
+                      )
+                    : AppColors.primaryGradient,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 40, color: Colors.white),
+            ).animate().scale(duration: 400.ms, curve: Curves.elasticOut),
+            const SizedBox(height: 24),
+            GradientText(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        timestamp,
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelMedium
-                            ?.copyWith(color: colors.onSurfaceVariant),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        item.text,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(height: 1.35),
-                      ),
-                      if (subtitle.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          subtitle,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: colors.onSurfaceVariant),
-                        )
-                      ],
-                    ],
+            ).animate().fadeIn(delay: 100.ms),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurface.withOpacity(0.6),
                   ),
-                );
-              },
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemCount: vm.items.length,
-            ),
-          );
-        },
+              textAlign: TextAlign.center,
+            ).animate().fadeIn(delay: 200.ms),
+            const SizedBox(height: 24),
+            GradientButton(
+              onPressed: () => vm.load(refresh: true),
+              height: 48,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text('Refresh'),
+                ],
+              ),
+            ).animate().fadeIn(delay: 300.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _CenteredMessage extends StatelessWidget {
-  const _CenteredMessage({required this.icon, required this.message, required this.colors});
+class _TranscriptCard extends StatelessWidget {
+  const _TranscriptCard({
+    required this.text,
+    required this.createdAt,
+    this.confidence,
+    this.durationSeconds,
+  });
 
-  final IconData icon;
-  final String message;
-  final ColorScheme colors;
+  final String text;
+  final DateTime createdAt;
+  final double? confidence;
+  final double? durationSeconds;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    final colors = Theme.of(context).colorScheme;
+    final timestamp = DateFormat.yMMMd().add_jm().format(createdAt.toLocal());
+
+    return GlassCard(
+      borderRadius: 18,
+      blur: 10,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.access_time_rounded, size: 14, color: Colors.white),
+                    const SizedBox(width: 6),
+                    Text(
+                      timestamp,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              if (confidence != null)
+                _MetadataChip(
+                  icon: Icons.verified_rounded,
+                  label: '${(confidence! * 100).toStringAsFixed(0)}%',
+                  color: AppColors.success,
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  height: 1.5,
+                ),
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (durationSeconds != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _MetadataChip(
+                  icon: Icons.timer_outlined,
+                  label: '${durationSeconds!.toStringAsFixed(1)}s',
+                  color: colors.primary,
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: Icon(Icons.copy_rounded, size: 20, color: colors.onSurface.withOpacity(0.5)),
+                  onPressed: () {
+                    // TODO: copy to clipboard
+                  },
+                  tooltip: 'Copy',
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MetadataChip extends StatelessWidget {
+  const _MetadataChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 48, color: colors.onSurfaceVariant),
-          const SizedBox(height: 12),
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
           Text(
-            message,
-            style: Theme.of(context).textTheme.bodyLarge,
-            textAlign: TextAlign.center,
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),

@@ -101,7 +101,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Sign in with your Supabase credentials to sync transcripts.',
+                            'Sign in to sync transcripts with your account.',
                             style: Theme.of(context)
                                 .textTheme
                                 .bodyMedium

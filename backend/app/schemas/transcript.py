@@ -9,7 +9,7 @@ class TranscriptBase(BaseModel):
     text: str = Field(min_length=1)
     confidence: float | None = None
     duration_seconds: float | None = None
-    metadata: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
     audio_url: str | None = None
 
 

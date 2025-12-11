@@ -15,7 +15,7 @@ class Transcript(Base):
     text = Column(Text, nullable=False)
     confidence = Column(Float, nullable=True)
     duration_seconds = Column(Float, nullable=True)
-    metadata = Column(JSONB, nullable=True)
+    meta = Column("metadata", JSONB, nullable=True)
     audio_url = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False, index=True)
 

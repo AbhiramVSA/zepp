@@ -2,14 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../authentication/viewmodel/auth_viewmodel.dart';
+import '../../home/viewmodel/history_viewmodel.dart';
 import '../repository/transcribe_repository.dart';
 
 enum TranscribeState { idle, recording, processing, completed, error }
 
 class TranscribeViewModel extends ChangeNotifier {
-  TranscribeViewModel(this._repository);
+  TranscribeViewModel(this._repository, this._auth, this._history);
 
   final TranscribeRepository _repository;
+  final AuthViewModel _auth;
+  final HistoryViewModel _history;
 
   TranscribeState _state = TranscribeState.idle;
   String _transcript = '';
@@ -33,6 +37,7 @@ class TranscribeViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      _repository.setAuthToken(_auth.session?.accessToken);
       await _repository.connectWebSocket();
       await _repository.startRecording();
       _listenForTranscriptions();
@@ -73,6 +78,10 @@ class TranscribeViewModel extends ChangeNotifier {
         _transcript = text;
         _state = TranscribeState.completed;
         notifyListeners();
+        // refresh history view on successful transcript save
+        if (_auth.isAuthenticated) {
+          unawaited(_history.load(refresh: true));
+        }
       },
       onError: (Object err, [StackTrace? st]) {
         if (_disposed) return;

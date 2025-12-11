@@ -8,13 +8,3 @@ const String backendWsUrl = String.fromEnvironment(
   'BACKEND_WS_URL',
   defaultValue: 'ws://10.0.2.2:8000/ws/audio',
 );
-
-const String supabaseUrl = String.fromEnvironment(
-  'SUPABASE_URL',
-  defaultValue: '',
-);
-
-const String supabaseAnonKey = String.fromEnvironment(
-  'SUPABASE_ANON_KEY',
-  defaultValue: '',
-);

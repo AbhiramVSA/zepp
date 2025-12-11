@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Iterable
+from typing import Any
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +14,7 @@ async def create(session: AsyncSession, user_id: str, payload: TranscriptCreate)
         text=payload.text,
         confidence=payload.confidence,
         duration_seconds=payload.duration_seconds,
-        metadata=payload.metadata,
+        meta=payload.meta,
         audio_url=payload.audio_url,
     )
     session.add(transcript)
@@ -24,7 +24,7 @@ async def create(session: AsyncSession, user_id: str, payload: TranscriptCreate)
 
 
 def _filters(user_id: str, start_date: datetime | None, end_date: datetime | None, q: str | None):
-    conditions: list[Iterable] = [Transcript.user_id == user_id]
+    conditions: list[Any] = [Transcript.user_id == user_id]
     if start_date:
         conditions.append(Transcript.created_at >= start_date)
     if end_date:
