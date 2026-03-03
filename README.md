@@ -1,6 +1,6 @@
-# VoiceAI - Real-Time Voice Transcription Application
+# VoiceAI
 
-VoiceAI is a full-stack voice transcription application that enables users to record audio and convert speech to text in real-time. Built with FastAPI on the backend and Flutter on the frontend, it features user authentication, transcript history management, and a modern user interface.
+A full-stack voice transcription application that captures audio and converts speech to text in real time. Built with a FastAPI backend and Flutter frontend, it provides user authentication, persistent transcript history, and cross-platform support.
 
 ## Table of Contents
 
@@ -10,11 +10,7 @@ VoiceAI is a full-stack voice transcription application that enables users to re
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
-  - [Backend Setup](#backend-setup)
-  - [Frontend Setup](#frontend-setup)
 - [Configuration](#configuration)
-  - [Environment Variables](#environment-variables)
-  - [External Services](#external-services)
 - [API Reference](#api-reference)
 - [Database Schema](#database-schema)
 - [Usage](#usage)
@@ -22,353 +18,220 @@ VoiceAI is a full-stack voice transcription application that enables users to re
 - [Contributing](#contributing)
 - [License](#license)
 
----
-
 ## Features
 
-- **Real-Time Voice Transcription**: Stream audio from your device and receive instant text conversion using the Whisper large-v3-turbo model via Groq API.
-- **User Authentication**: Secure signup and login functionality powered by Supabase Auth with JWT token management.
-- **Transcript History**: View, manage, and search through all past transcriptions.
-- **Session Persistence**: Automatic session restoration on app restart using secure local storage.
-- **Modern UI Design**: Animated backgrounds, glassmorphism effects, gradient accents, and smooth animations.
-- **Theme Support**: Toggle between dark and light themes.
-- **Cross-Platform**: Supports Android, iOS, Web, Windows, macOS, and Linux.
-
----
+- **Real-time voice transcription** -- Stream audio from the device microphone and receive instant text output via the Whisper large-v3-turbo model on Groq.
+- **User authentication** -- Signup, login, and session management powered by Supabase Auth with JWT tokens.
+- **Transcript history** -- Browse, search, and manage all past transcriptions.
+- **Session persistence** -- Automatic session restoration on app restart using secure local storage.
+- **Theming** -- Toggle between dark and light modes.
+- **Cross-platform** -- Supports Android, iOS, Web, Windows, macOS, and Linux.
 
 ## Architecture
 
 ### System Overview
 
-```
-+------------------+       WebSocket        +------------------+       HTTPS       +------------------+
-|                  |  (PCM Audio Stream)    |                  |    (Whisper)      |                  |
-|   Flutter App    | ---------------------> |   FastAPI        | ----------------> |   Groq API       |
-|                  | <--------------------- |   Backend        | <---------------- |                  |
-|                  |    (Transcription)     |                  |   (Text Result)   |                  |
-+------------------+                        +------------------+                   +------------------+
-        |                                           |
-        |  REST API (Auth, Transcripts)             |  SQL Queries
-        |                                           |
-        v                                           v
-+------------------+                        +------------------+
-|                  |                        |                  |
-| Shared Prefs     |                        |   PostgreSQL     |
-| (Local Storage)  |                        |   (Supabase)     |
-|                  |                        |                  |
-+------------------+                        +------------------+
+```mermaid
+graph LR
+    A[Flutter App] -- "PCM audio (WebSocket)" --> B[FastAPI Backend]
+    B -- "Transcription result" --> A
+    B -- "Whisper API (HTTPS)" --> C[Groq API]
+    C -- "Text result" --> B
+    A -- "REST API" --> B
+    B -- "SQL" --> D[(PostgreSQL<br/>Supabase)]
+    A -- "Local storage" --> E[(SharedPreferences)]
 ```
 
 ### Audio Transcription Flow
 
-1. The Flutter application captures audio using the device microphone (PCM 16-bit, 16kHz, mono channel).
-2. Audio chunks are streamed in real-time via WebSocket to the backend `/ws/audio` endpoint.
-3. The backend buffers incoming audio chunks until it receives an "end" event.
+1. The Flutter app captures audio using the device microphone (PCM 16-bit, 16 kHz, mono).
+2. Audio chunks stream in real time over a WebSocket connection to the `/ws/audio` endpoint.
+3. The backend buffers incoming chunks until it receives an `end` event.
 4. Raw PCM audio is converted to WAV format with appropriate headers.
-5. The WAV audio is sent to the Groq API using the Whisper transcription model.
-6. The transcription result is returned to the client via the WebSocket connection.
-7. If the user is authenticated, the transcript is automatically saved to the database.
+5. The WAV file is sent to the Groq API using the Whisper transcription model.
+6. The transcription result is returned to the client over the same WebSocket.
+7. If the user is authenticated, the transcript is automatically persisted to the database.
 
 ### Authentication Flow
 
-1. User submits credentials via the Flutter app login or signup screen.
-2. The backend proxies the authentication request to Supabase Auth.
+1. The user submits credentials via the login or signup screen.
+2. The backend proxies the request to Supabase Auth.
 3. On success, JWT access and refresh tokens are returned.
-4. Tokens are stored securely in SharedPreferences for session persistence.
-5. Protected API routes validate the JWT using the Supabase JWT secret.
-6. Users are automatically created in the local database on their first authenticated request.
-
----
+4. Tokens are stored in SharedPreferences for session persistence.
+5. Protected API routes validate the JWT against the Supabase JWT secret.
+6. Users are created in the local database on first authenticated request.
 
 ## Tech Stack
 
 ### Backend
 
-| Component | Technology | Version |
-|-----------|------------|---------|
-| Framework | FastAPI | 0.124.0+ |
-| Language | Python | 3.13+ |
-| Database ORM | SQLAlchemy (async) | 2.0.36+ |
-| Database Driver | asyncpg | 0.29.0+ |
-| Authentication | Supabase Auth + python-jose | 3.3.0+ |
-| AI/ML | Groq API (Whisper) | - |
-| HTTP Client | httpx | 0.28.1+ |
-| Configuration | Pydantic Settings | 2.12.0+ |
-| Validation | Pydantic | 2.12.5+ |
+| Component        | Technology                    |
+| ---------------- | ----------------------------- |
+| Framework        | FastAPI 0.124+                |
+| Language         | Python 3.13+                  |
+| ORM              | SQLAlchemy 2.0+ (async)       |
+| Database Driver  | asyncpg 0.29+                 |
+| Authentication   | Supabase Auth, python-jose    |
+| Transcription    | Groq API (Whisper)            |
+| HTTP Client      | httpx 0.28+                   |
+| Configuration    | Pydantic Settings 2.12+       |
 
 ### Frontend
 
-| Component | Technology | Version |
-|-----------|------------|---------|
-| Framework | Flutter | 3.10.3+ |
-| Language | Dart | 3.10.3+ |
-| State Management | Provider | 6.1.2 |
-| Audio Recording | flutter_sound | 9.2.13 |
-| WebSocket | web_socket_channel | 3.0.1 |
-| HTTP Client | http | 1.2.2 |
-| Permissions | permission_handler | 11.3.1 |
-| Local Storage | shared_preferences | 2.2.3 |
-| Typography | google_fonts | 6.2.1 |
-| Animations | flutter_animate | 4.5.0 |
-| Loading Effects | shimmer | 3.0.0 |
-| Date Formatting | intl | 0.19.0 |
-
----
+| Component        | Technology                    |
+| ---------------- | ----------------------------- |
+| Framework        | Flutter 3.10+                 |
+| Language         | Dart 3.10+                    |
+| State Management | Provider 6.1                  |
+| Audio Recording  | flutter_sound 9.2             |
+| WebSocket        | web_socket_channel 3.0        |
+| HTTP Client      | http 1.2                      |
+| Local Storage    | shared_preferences 2.2        |
+| Animations       | flutter_animate 4.5           |
 
 ## Project Structure
 
 ```
 voice-app/
-├── README.md
-├── backend/
-│   ├── pyproject.toml              # Python dependencies and project metadata
-│   ├── .env                        # Environment variables (not in version control)
-│   └── app/
-│       ├── __init__.py
-│       ├── main.py                 # FastAPI application entry point
-│       ├── api/
-│       │   ├── api.py              # Router aggregation
-│       │   └── v1/
-│       │       ├── __init__.py
-│       │       └── routers/
-│       │           ├── audio_ws.py     # WebSocket endpoint for audio streaming
-│       │           ├── auth.py         # Authentication endpoints
-│       │           └── transcripts.py  # Transcript CRUD operations
-│       ├── config/
-│       │   └── settings.py         # Environment configuration with Pydantic
-│       ├── controllers/
-│       │   └── audio_transcription.py  # Groq API integration
-│       ├── core/
-│       │   └── __init__.py
-│       ├── crud/
-│       │   ├── transcript.py       # Transcript database operations
-│       │   └── user.py             # User database operations
-│       ├── db/
-│       │   └── database.py         # Async SQLAlchemy engine setup
-│       ├── deps/
-│       │   └── auth.py             # Authentication dependencies
-│       ├── models/
-│       │   ├── __init__.py
-│       │   ├── base.py             # SQLAlchemy base model
-│       │   ├── transcript.py       # Transcript ORM model
-│       │   └── user.py             # User ORM model
-│       ├── schemas/
-│       │   ├── auth.py             # Authentication Pydantic schemas
-│       │   ├── transcript.py       # Transcript Pydantic schemas
-│       │   └── user.py             # User Pydantic schemas
-│       └── utils/
-│           └── security.py         # JWT verification utilities
-│
-└── frontend-app/
-    └── flutter_app/
-        ├── pubspec.yaml            # Flutter dependencies
-        ├── analysis_options.yaml   # Dart linting rules
-        ├── lib/
-        │   ├── main.dart           # Application entry point
-        │   ├── core/
-        │   │   ├── app_config.dart     # Backend URL configuration
-        │   │   ├── app_theme.dart      # Theme definitions and colors
-        │   │   └── widgets/
-        │   │       ├── animated_background.dart
-        │   │       └── glass_widgets.dart
-        │   └── features/
-        │       ├── authentication/     # Login and signup (MVVM pattern)
-        │       │   ├── model/
-        │       │   ├── repository/
-        │       │   ├── view/
-        │       │   └── viewmodel/
-        │       ├── transcribe/         # Voice recording (MVVM pattern)
-        │       │   ├── repository/
-        │       │   ├── view/
-        │       │   └── viewmodel/
-        │       ├── home/               # Navigation and history (MVVM pattern)
-        │       │   ├── model/
-        │       │   ├── repository/
-        │       │   ├── view/
-        │       │   └── viewmodel/
-        │       └── account/            # User settings
-        │           └── view/
-        ├── android/                # Android-specific configuration
-        ├── ios/                    # iOS-specific configuration
-        ├── web/                    # Web-specific configuration
-        ├── windows/                # Windows-specific configuration
-        ├── macos/                  # macOS-specific configuration
-        └── linux/                  # Linux-specific configuration
-```
+  backend/
+    pyproject.toml
+    app/
+      main.py                       # Application entry point
+      api/
+        api.py                      # Router aggregation
+        v1/routers/
+          audio_ws.py               # WebSocket audio streaming
+          auth.py                   # Authentication endpoints
+          transcripts.py            # Transcript CRUD
+      config/settings.py            # Pydantic-based configuration
+      controllers/
+        audio_transcription.py      # Groq API integration
+      crud/
+        transcript.py               # Transcript DB operations
+        user.py                     # User DB operations
+      db/database.py                # Async SQLAlchemy engine
+      deps/auth.py                  # Auth dependencies
+      models/
+        transcript.py               # Transcript ORM model
+        user.py                     # User ORM model
+      schemas/
+        auth.py                     # Auth request/response schemas
+        transcript.py               # Transcript schemas
+        user.py                     # User schemas
+      utils/security.py             # JWT verification
 
----
+  frontend-app/flutter_app/
+    pubspec.yaml
+    lib/
+      main.dart                     # Application entry point
+      core/
+        app_config.dart             # Backend URL configuration
+        app_theme.dart              # Theme definitions
+        widgets/                    # Shared UI components
+      features/
+        authentication/             # Login and signup (MVVM)
+        transcribe/                 # Voice recording (MVVM)
+        home/                       # Navigation and history (MVVM)
+        account/                    # User settings
+```
 
 ## Prerequisites
 
-Before setting up the project, ensure you have the following installed:
-
-### Backend Requirements
+### Backend
 
 - Python 3.13 or higher
-- pip (Python package manager)
-- PostgreSQL database (or Supabase project)
+- pip
+- PostgreSQL database (or a Supabase project)
 
-### Frontend Requirements
+### Frontend
 
 - Flutter SDK 3.10.3 or higher
-- Dart SDK 3.10.3 or higher
-- Android Studio (for Android development) or Xcode (for iOS development)
-- A physical device or emulator for testing
+- Android Studio or Xcode (for mobile development)
+- A physical device or emulator
 
 ### External Services
 
-- **Supabase Account**: Required for authentication and PostgreSQL database hosting.
-- **Groq API Key**: Required for accessing the Whisper transcription model.
-
----
+- **Supabase** -- authentication and PostgreSQL hosting
+- **Groq** -- Whisper transcription API
 
 ## Installation
 
 ### Backend Setup
 
-1. Navigate to the backend directory:
-
 ```bash
 cd backend
-```
 
-2. Create and activate a virtual environment:
-
-```bash
-# Create virtual environment
+# Create and activate a virtual environment
 python -m venv .venv
+source .venv/bin/activate        # macOS / Linux
+.venv\Scripts\activate           # Windows
 
-# Activate on Windows
-.venv\Scripts\activate
-
-# Activate on macOS/Linux
-source .venv/bin/activate
-```
-
-3. Install dependencies:
-
-```bash
+# Install dependencies
 pip install -e .
-```
 
-4. Create a `.env` file in the backend directory (see [Environment Variables](#environment-variables) section).
+# Create .env (see Configuration section)
 
-5. Start the development server:
-
-```bash
+# Start the development server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The API will be available at `http://localhost:8000`. API documentation is accessible at `http://localhost:8000/docs`.
+The API will be available at `http://localhost:8000`. Interactive docs are at `http://localhost:8000/docs`.
 
 ### Frontend Setup
 
-1. Navigate to the Flutter app directory:
-
 ```bash
 cd frontend-app/flutter_app
-```
 
-2. Install Flutter dependencies:
-
-```bash
+# Install dependencies
 flutter pub get
-```
 
-3. Run the application:
-
-```bash
-# For Android emulator (uses default localhost mapping)
+# Run on default emulator
 flutter run
 
-# For physical device or custom backend URL
-flutter run --dart-define=BACKEND_BASE_URL=http://your-server:8000 --dart-define=BACKEND_WS_URL=ws://your-server:8000/ws/audio
+# Run with custom backend URLs
+flutter run \
+  --dart-define=BACKEND_BASE_URL=http://your-server:8000 \
+  --dart-define=BACKEND_WS_URL=ws://your-server:8000/ws/audio
 ```
-
-4. Build for production:
-
-```bash
-# Android APK
-flutter build apk --release
-
-# iOS
-flutter build ios --release
-
-# Web
-flutter build web --release
-```
-
----
 
 ## Configuration
 
 ### Environment Variables
 
-Create a `.env` file in the `backend/` directory with the following variables:
+Create a `.env` file in the `backend/` directory:
 
 ```env
-# Database Configuration
-DATABASE_URL=postgresql+asyncpg://username:password@host:port/database
-
-# Supabase Configuration
+DATABASE_URL=postgresql+asyncpg://user:password@host:port/database
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your_supabase_anon_or_service_key
-SUPABASE_JWT_SECRET=your_supabase_jwt_secret
-
-# JWT Configuration
+SUPABASE_KEY=your_supabase_anon_key
+SUPABASE_JWT_SECRET=your_jwt_secret
 JWT_AUDIENCE=
-
-# Groq API Configuration
 GROQ_API_KEY=your_groq_api_key
 ```
 
-#### Variable Descriptions
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string with asyncpg driver. For Supabase, use the pooler connection string. |
-| `SUPABASE_URL` | Your Supabase project URL (found in project settings). |
-| `SUPABASE_KEY` | Supabase anon key or service role key (found in API settings). |
-| `SUPABASE_JWT_SECRET` | JWT secret for verifying Supabase tokens (found in API settings under JWT Settings). |
-| `JWT_AUDIENCE` | Optional JWT audience claim. Leave empty if not using audience verification. |
-| `GROQ_API_KEY` | API key from Groq console for accessing Whisper transcription. |
+| Variable             | Description                                                                 |
+| -------------------- | --------------------------------------------------------------------------- |
+| `DATABASE_URL`       | PostgreSQL connection string using the asyncpg driver.                      |
+| `SUPABASE_URL`       | Supabase project URL (Project Settings > API).                              |
+| `SUPABASE_KEY`       | Supabase anon or service role key.                                          |
+| `SUPABASE_JWT_SECRET`| JWT secret for token verification (API Settings > JWT Settings).            |
+| `JWT_AUDIENCE`       | Optional JWT audience claim. Leave empty to skip audience verification.     |
+| `GROQ_API_KEY`       | API key from the Groq console.                                              |
 
 ### Frontend Configuration
 
-Backend URLs are configured at build time using Dart defines:
+Backend URLs are set at build time via Dart defines:
 
-| Define | Default Value | Description |
-|--------|---------------|-------------|
-| `BACKEND_BASE_URL` | `http://10.0.2.2:8000` | Base URL for REST API calls. Default is Android emulator localhost mapping. |
-| `BACKEND_WS_URL` | `ws://10.0.2.2:8000/ws/audio` | WebSocket URL for audio streaming. |
+| Define              | Default                          | Description                        |
+| ------------------- | -------------------------------- | ---------------------------------- |
+| `BACKEND_BASE_URL`  | `http://10.0.2.2:8000`          | REST API base URL                  |
+| `BACKEND_WS_URL`    | `ws://10.0.2.2:8000/ws/audio`   | WebSocket URL for audio streaming  |
 
-For production builds, pass your server URLs:
+### External Service Setup
 
-```bash
-flutter run \
-  --dart-define=BACKEND_BASE_URL=https://api.yourserver.com \
-  --dart-define=BACKEND_WS_URL=wss://api.yourserver.com/ws/audio
-```
+**Supabase** -- Create a project at [supabase.com](https://supabase.com). Copy the project URL, anon key, JWT secret, and database connection string into `.env`.
 
-### External Services
-
-#### Supabase Setup
-
-1. Create a new project at [supabase.com](https://supabase.com).
-2. Navigate to Project Settings and API section.
-3. Copy the following values to your `.env` file:
-   - Project URL to `SUPABASE_URL`
-   - anon/public key to `SUPABASE_KEY`
-   - JWT Secret (under JWT Settings) to `SUPABASE_JWT_SECRET`
-4. Use the database connection string (Session pooler recommended) for `DATABASE_URL`.
-
-#### Groq API Setup
-
-1. Create an account at [console.groq.com](https://console.groq.com).
-2. Generate an API key from the API Keys section.
-3. Copy the key to `GROQ_API_KEY` in your `.env` file.
-
----
+**Groq** -- Create an account at [console.groq.com](https://console.groq.com). Generate an API key and add it to `.env`.
 
 ## API Reference
 
@@ -378,27 +241,19 @@ flutter run \
 GET /
 ```
 
-Returns API health status.
-
-**Response:**
-```json
-{
-  "status": "ok",
-  "message": "VoiceAI API is running"
-}
-```
+Returns `{"status": "ok", "message": "VoiceAI API is running"}`.
 
 ### Authentication
 
-#### Sign Up
+| Method | Endpoint         | Description                  | Auth Required |
+| ------ | ---------------- | ---------------------------- | ------------- |
+| POST   | `/auth/signup`   | Register a new user          | No            |
+| POST   | `/auth/login`    | Authenticate an existing user| No            |
+| POST   | `/auth/refresh`  | Refresh an expired token     | No            |
+| GET    | `/auth/whoami`   | Get current user info        | Yes           |
 
-```
-POST /auth/signup
-```
+**Request body** (signup and login):
 
-Register a new user account.
-
-**Request Body:**
 ```json
 {
   "email": "user@example.com",
@@ -406,7 +261,8 @@ Register a new user account.
 }
 ```
 
-**Response:**
+**Response** (signup and login):
+
 ```json
 {
   "access_token": "eyJ...",
@@ -418,146 +274,20 @@ Register a new user account.
 }
 ```
 
-#### Login
-
-```
-POST /auth/login
-```
-
-Authenticate an existing user.
-
-**Request Body:**
-```json
-{
-  "email": "user@example.com",
-  "password": "securepassword"
-}
-```
-
-**Response:** Same as signup.
-
-#### Refresh Token
-
-```
-POST /auth/refresh
-```
-
-Refresh an expired access token.
-
-**Request Body:**
-```json
-{
-  "refresh_token": "eyJ..."
-}
-```
-
-#### Get Current User
-
-```
-GET /auth/whoami
-```
-
-Get the authenticated user's information.
-
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Response:**
-```json
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "is_active": true,
-  "is_superuser": false,
-  "created_at": "2024-01-01T00:00:00Z"
-}
-```
-
 ### Transcripts
 
-#### Create Transcript
+| Method | Endpoint                    | Description                 | Auth Required |
+| ------ | --------------------------- | --------------------------- | ------------- |
+| POST   | `/transcripts/`             | Save a new transcript       | Yes           |
+| GET    | `/transcripts/history`      | List transcript history     | Yes           |
+| GET    | `/transcripts/{id}`         | Get a single transcript     | Yes           |
 
-```
-POST /transcripts/
-```
+**Query parameters** for `/transcripts/history`:
 
-Save a new transcript.
-
-**Headers:**
-```
-Authorization: Bearer <access_token>
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "text": "Transcribed text content"
-}
-```
-
-**Response:**
-```json
-{
-  "id": "uuid",
-  "user_id": "uuid",
-  "text": "Transcribed text content",
-  "confidence": null,
-  "duration_seconds": null,
-  "created_at": "2024-01-01T00:00:00Z"
-}
-```
-
-#### Get Transcript History
-
-```
-GET /transcripts/history?limit=50&offset=0
-```
-
-Retrieve the user's transcript history.
-
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Query Parameters:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `limit` | integer | 50 | Maximum number of transcripts to return |
-| `offset` | integer | 0 | Number of transcripts to skip |
-
-**Response:**
-```json
-{
-  "items": [
-    {
-      "id": "uuid",
-      "user_id": "uuid",
-      "text": "Transcribed text",
-      "confidence": 0.95,
-      "duration_seconds": 30.5,
-      "created_at": "2024-01-01T00:00:00Z"
-    }
-  ],
-  "total": 100
-}
-```
-
-#### Get Single Transcript
-
-```
-GET /transcripts/{transcript_id}
-```
-
-Retrieve a specific transcript by ID.
-
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
+| Parameter | Type    | Default | Description                     |
+| --------- | ------- | ------- | ------------------------------- |
+| `limit`   | integer | 50      | Maximum number of results       |
+| `offset`  | integer | 0       | Number of results to skip       |
 
 ### WebSocket Audio Streaming
 
@@ -565,190 +295,94 @@ Authorization: Bearer <access_token>
 WS /ws/audio
 ```
 
-Stream audio for real-time transcription.
+1. Send raw PCM audio data as binary frames (16-bit, 16 kHz, mono).
+2. Send `{"event": "end"}` when recording is complete.
+3. Receive `{"text": "Transcribed content"}` as the result.
 
-**Connection:**
-```javascript
-const ws = new WebSocket('ws://localhost:8000/ws/audio');
-```
-
-**Protocol:**
-
-1. Send raw PCM audio data as binary frames (16-bit, 16kHz, mono).
-2. Send end signal when recording is complete:
-   ```json
-   {"event": "end"}
-   ```
-3. Receive transcription result:
-   ```json
-   {"text": "Transcribed text content"}
-   ```
-
-**Error Response:**
-```json
-{"error": "Error message"}
-```
-
----
+On error, the server responds with `{"error": "Error message"}`.
 
 ## Database Schema
 
-### Users Table
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | VARCHAR | PRIMARY KEY | Supabase user ID |
-| email | VARCHAR | UNIQUE, NOT NULL | User email address |
-| is_active | BOOLEAN | DEFAULT true | Account active status |
-| is_superuser | BOOLEAN | DEFAULT false | Admin privileges flag |
-| created_at | TIMESTAMP | DEFAULT now() | Account creation timestamp |
-
-### Transcripts Table
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | UUID | PRIMARY KEY | Auto-generated UUID |
-| user_id | VARCHAR | FOREIGN KEY (users.id) | Owner reference |
-| text | TEXT | NOT NULL | Transcription content |
-| confidence | FLOAT | NULLABLE | Transcription confidence score |
-| duration_seconds | FLOAT | NULLABLE | Audio duration in seconds |
-| metadata | JSONB | NULLABLE | Additional metadata |
-| audio_url | TEXT | NULLABLE | Original audio file URL |
-| created_at | TIMESTAMP | DEFAULT now() | Creation timestamp |
-
----
+```mermaid
+erDiagram
+    users {
+        varchar id PK "Supabase user ID"
+        varchar email UK "User email"
+        boolean is_active "Default: true"
+        boolean is_superuser "Default: false"
+        timestamp created_at "Default: now()"
+    }
+    transcripts {
+        uuid id PK "Auto-generated"
+        varchar user_id FK "References users.id"
+        text text "Transcription content"
+        float confidence "Nullable"
+        float duration_seconds "Nullable"
+        jsonb metadata "Nullable"
+        text audio_url "Nullable"
+        timestamp created_at "Default: now()"
+    }
+    users ||--o{ transcripts : "has many"
+```
 
 ## Usage
 
-### Recording a Transcript
+**Recording** -- Open the Transcribe tab, grant microphone permissions, tap the microphone button, speak, and tap again to stop. The transcription appears on screen and is saved automatically when logged in.
 
-1. Open the application and navigate to the Transcribe tab.
-2. Grant microphone permissions when prompted.
-3. Tap the microphone button to start recording.
-4. Speak clearly into your device's microphone.
-5. Tap the button again to stop recording.
-6. The transcription will appear on screen and be saved automatically if logged in.
+**History** -- Log in and navigate to the History tab to browse past transcriptions.
 
-### Viewing History
-
-1. Log in to your account.
-2. Navigate to the History tab.
-3. Browse through your past transcriptions.
-4. Use the refresh button to load new transcripts.
-
-### Managing Your Account
-
-1. Navigate to the Account tab.
-2. View your profile information.
-3. Toggle between dark and light themes.
-4. Log out when finished.
-
----
+**Account** -- View profile information, toggle themes, or log out from the Account tab.
 
 ## Development
 
 ### Running Tests
 
-#### Backend
-
 ```bash
-cd backend
-pytest
-```
+# Backend
+cd backend && pytest
 
-#### Frontend
-
-```bash
-cd frontend-app/flutter_app
-flutter test
+# Frontend
+cd frontend-app/flutter_app && flutter test
 ```
 
 ### Code Style
 
-#### Backend
-
-The project follows PEP 8 style guidelines. Use the following tools:
-
 ```bash
-# Format code
+# Backend
 black app/
-
-# Sort imports
 isort app/
-
-# Type checking
 mypy app/
-```
 
-#### Frontend
-
-The project uses the Flutter recommended linting rules defined in `analysis_options.yaml`:
-
-```bash
-# Analyze code
+# Frontend
 flutter analyze
-
-# Format code
 dart format lib/
 ```
 
-### Building for Production
+### Production Build
 
-#### Backend
-
-For production deployment, use a production ASGI server:
+**Backend:**
 
 ```bash
 gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```
 
-#### Frontend
-
-Build optimized releases:
+**Frontend:**
 
 ```bash
-# Android
 flutter build apk --release --dart-define=BACKEND_BASE_URL=https://api.production.com
-
-# iOS
 flutter build ios --release --dart-define=BACKEND_BASE_URL=https://api.production.com
-
-# Web
 flutter build web --release --dart-define=BACKEND_BASE_URL=https://api.production.com
 ```
 
----
-
 ## Contributing
 
-Contributions are welcome. Please follow these steps:
-
 1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/your-feature-name`
-3. Make your changes and commit: `git commit -m 'Add some feature'`
-4. Push to the branch: `git push origin feature/your-feature-name`
-5. Open a pull request.
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit your changes with a descriptive message.
+4. Push and open a pull request.
 
-### Guidelines
-
-- Follow the existing code style and conventions.
-- Write meaningful commit messages.
-- Add tests for new functionality.
-- Update documentation as needed.
-- Ensure all tests pass before submitting.
-
----
+Follow the existing code style, add tests for new functionality, and ensure all tests pass before submitting.
 
 ## License
 
-This project is open source and available under the [MIT License](LICENSE).
-
----
-
-## Acknowledgments
-
-- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
-- [Flutter](https://flutter.dev/) - Cross-platform UI toolkit
-- [Supabase](https://supabase.com/) - Open source Firebase alternative
-- [Groq](https://groq.com/) - Fast AI inference platform
-- [OpenAI Whisper](https://openai.com/research/whisper) - Speech recognition model
+This project is available under the [MIT License](LICENSE).

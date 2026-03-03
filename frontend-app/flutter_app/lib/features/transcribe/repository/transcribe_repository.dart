@@ -25,6 +25,8 @@ class TranscribeRepository {
       StreamController<Uint8List>.broadcast();
   final StreamController<String> _transcriptionController =
       StreamController<String>.broadcast();
+  final StreamController<void> _persistedController =
+      StreamController<void>.broadcast();
 
   IOWebSocketChannel? _channel;
   StreamSubscription<Uint8List>? _pcmSubscription;
@@ -32,6 +34,10 @@ class TranscribeRepository {
   bool _isInitialized = false;
 
   Stream<String> get transcriptionStream => _transcriptionController.stream;
+  
+  /// Stream that emits when a transcript has been successfully persisted to the server.
+  /// Listen to this to know when to refresh history.
+  Stream<void> get persistedStream => _persistedController.stream;
 
   void setAuthToken(String? token) {
     _authToken = token;
@@ -152,6 +158,7 @@ class TranscribeRepository {
     await _recorder.closeRecorder();
     await _pcmController.close();
     await _transcriptionController.close();
+    await _persistedController.close();
     _isInitialized = false;
   }
 
@@ -198,6 +205,8 @@ class TranscribeRepository {
           // ignore: avoid_print
           print('Transcript saved successfully');
         }
+        // Notify listeners that transcript was persisted successfully
+        _persistedController.add(null);
       }
     } catch (e, st) {
       if (kDebugMode) {

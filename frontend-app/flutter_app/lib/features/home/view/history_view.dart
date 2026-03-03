@@ -27,7 +27,7 @@ class _HistoryViewState extends State<HistoryView> {
   Widget build(BuildContext context) {
     return Consumer<HistoryViewModel>(
       builder: (context, vm, _) {
-        if (vm.state == HistoryState.loading) {
+        if (vm.state == HistoryState.loading && vm.items.isEmpty) {
           return _buildLoadingState(context);
         }
         if (vm.state == HistoryState.unauthenticated) {
@@ -38,7 +38,7 @@ class _HistoryViewState extends State<HistoryView> {
             message: 'Sign in to see your transcripts.',
           );
         }
-        if (vm.state == HistoryState.error) {
+        if (vm.state == HistoryState.error && vm.items.isEmpty) {
           return _buildEmptyState(
             context,
             icon: Icons.error_outline_rounded,
@@ -57,28 +57,43 @@ class _HistoryViewState extends State<HistoryView> {
         }
 
         return RefreshIndicator(
-          onRefresh: () => vm.load(refresh: true),
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            itemCount: vm.items.length,
-            itemBuilder: (context, index) {
-              final item = vm.items[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _TranscriptCard(
-                  text: item.text,
-                  createdAt: item.createdAt,
-                  confidence: item.confidence,
-                  durationSeconds: item.durationSeconds,
-                )
-                    .animate()
-                    .fadeIn(
-                      delay: Duration(milliseconds: index * 50),
-                      duration: 400.ms,
-                    )
-                    .slideY(begin: 0.1, end: 0),
-              );
-            },
+          onRefresh: () => vm.refresh(),
+          child: Column(
+            children: [
+              // Cache indicator banner
+              if (vm.isFromCache)
+                _CacheBanner(
+                  onRefresh: () => vm.refresh(),
+                  isRefreshing: vm.state == HistoryState.refreshing,
+                ),
+              // Refreshing indicator
+              if (vm.state == HistoryState.refreshing)
+                const LinearProgressIndicator(minHeight: 2),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  itemCount: vm.items.length,
+                  itemBuilder: (context, index) {
+                    final item = vm.items[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _TranscriptCard(
+                        text: item.text,
+                        createdAt: item.createdAt,
+                        confidence: item.confidence,
+                        durationSeconds: item.durationSeconds,
+                      )
+                          .animate()
+                          .fadeIn(
+                            delay: Duration(milliseconds: index * 50),
+                            duration: 400.ms,
+                          )
+                          .slideY(begin: 0.1, end: 0),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -306,6 +321,76 @@ class _MetadataChip extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CacheBanner extends StatelessWidget {
+  const _CacheBanner({
+    required this.onRefresh,
+    required this.isRefreshing,
+  });
+
+  final VoidCallback onRefresh;
+  final bool isRefreshing;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withOpacity(0.5),
+        border: Border(
+          bottom: BorderSide(
+            color: colors.outline.withOpacity(0.1),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.offline_bolt_rounded,
+            size: 16,
+            color: colors.primary.withOpacity(0.7),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Showing cached data',
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.onSurface.withOpacity(0.6),
+              ),
+            ),
+          ),
+          if (!isRefreshing)
+            GestureDetector(
+              onTap: onRefresh,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.refresh_rounded,
+                    size: 14,
+                    color: colors.primary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Refresh',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: colors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

@@ -1,0 +1,23 @@
+# AI tools
+CLAUDE.md
+.claude/
+.cursorrules
+.cursor/
+.copilot/
+.github/copilot/
+.aider*
+.codeium/
+.continue/
+.windsurf/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE / editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

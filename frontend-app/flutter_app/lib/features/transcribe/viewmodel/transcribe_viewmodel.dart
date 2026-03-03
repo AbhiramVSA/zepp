@@ -3,13 +3,21 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../authentication/viewmodel/auth_viewmodel.dart';
-import '../../home/viewmodel/history_viewmodel.dart';
+import '../../home/viewmodel/history_viewmodel_v2.dart';
 import '../repository/transcribe_repository.dart';
 
 enum TranscribeState { idle, recording, processing, completed, error }
 
 class TranscribeViewModel extends ChangeNotifier {
-  TranscribeViewModel(this._repository, this._auth, this._history);
+  TranscribeViewModel(this._repository, this._auth, this._history) {
+    // Listen for persisted transcripts to refresh history
+    _persistedSub = _repository.persistedStream.listen((_) {
+      if (!_disposed && _auth.isAuthenticated) {
+        // Transcript was saved to server - now refresh history
+        unawaited(_history.load(refresh: true));
+      }
+    });
+  }
 
   final TranscribeRepository _repository;
   final AuthViewModel _auth;
@@ -19,6 +27,7 @@ class TranscribeViewModel extends ChangeNotifier {
   String _transcript = '';
   String? _error;
   StreamSubscription<String>? _transcriptionSub;
+  StreamSubscription<void>? _persistedSub;
   bool _disposed = false;
 
   TranscribeState get state => _state;
@@ -78,10 +87,8 @@ class TranscribeViewModel extends ChangeNotifier {
         _transcript = text;
         _state = TranscribeState.completed;
         notifyListeners();
-        // refresh history view on successful transcript save
-        if (_auth.isAuthenticated) {
-          unawaited(_history.load(refresh: true));
-        }
+        // History refresh is now triggered by persistedStream listener
+        // after the transcript is successfully saved to the server
       },
       onError: (Object err, [StackTrace? st]) {
         if (_disposed) return;
@@ -109,6 +116,7 @@ class TranscribeViewModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _transcriptionSub?.cancel();
+    _persistedSub?.cancel();
     // fire-and-forget cleanup; recorder stop/close handled inside
     unawaited(_repository.close());
     super.dispose();

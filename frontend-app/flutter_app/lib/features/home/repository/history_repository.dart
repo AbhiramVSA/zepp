@@ -4,30 +4,93 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/app_config.dart';
+import '../../../core/services/transcript_cache_service.dart';
 import '../model/transcript_item.dart';
 
 class TranscriptHistory {
-  const TranscriptHistory({required this.items, required this.total});
+  const TranscriptHistory({
+    required this.items,
+    required this.total,
+    this.fromCache = false,
+  });
 
   final List<TranscriptItem> items;
   final int total;
+  final bool fromCache;
 }
 
 class HistoryRepository {
-  const HistoryRepository();
+  HistoryRepository({TranscriptCacheService? cacheService})
+      : _cacheService = cacheService ?? TranscriptCacheService();
 
-  Future<TranscriptHistory> fetchHistory({required String token, int limit = 50, int offset = 0}) async {
-    // First, debug the token
-    if (kDebugMode) {
-      await _debugToken(token);
+  final TranscriptCacheService _cacheService;
+
+  /// Fetch history with cache-first strategy.
+  /// Returns cached data immediately if available, then optionally refreshes.
+  Future<TranscriptHistory> fetchHistory({
+    required String token,
+    int limit = 50,
+    int offset = 0,
+    bool forceRefresh = false,
+  }) async {
+    // Try cache first (only for first page)
+    if (!forceRefresh && offset == 0) {
+      final cached = await _cacheService.getCachedTranscripts();
+      if (cached != null) {
+        return TranscriptHistory(
+          items: cached.items,
+          total: cached.total,
+          fromCache: true,
+        );
+      }
     }
-    
+
+    // Fetch from server
+    final result = await _fetchFromServer(token: token, limit: limit, offset: offset);
+
+    // Cache first page results
+    if (offset == 0) {
+      await _cacheService.cacheTranscripts(result.items, result.total);
+    }
+
+    return result;
+  }
+
+  /// Force fetch from server (bypasses cache).
+  Future<TranscriptHistory> refreshHistory({
+    required String token,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    return fetchHistory(token: token, limit: limit, offset: offset, forceRefresh: true);
+  }
+
+  /// Add a new transcript to the local cache.
+  Future<void> cacheNewTranscript(TranscriptItem transcript) async {
+    await _cacheService.addTranscriptToCache(transcript);
+  }
+
+  /// Clear local cache (e.g., on logout).
+  Future<void> clearCache() async {
+    await _cacheService.clearCache();
+  }
+
+  /// Invalidate cache to force refresh on next fetch.
+  Future<void> invalidateCache() async {
+    await _cacheService.invalidateCache();
+  }
+
+  Future<TranscriptHistory> _fetchFromServer({
+    required String token,
+    int limit = 50,
+    int offset = 0,
+  }) async {
     final uri = Uri.parse('$backendBaseUrl/transcripts/history?limit=$limit&offset=$offset');
     if (kDebugMode) {
       // ignore: avoid_print
-      print('DEBUG History: GET $uri');
-      print('DEBUG History: Token length: ${token.length}');
+      print('HISTORY: Fetching from server $uri');
     }
+
     final response = await http.get(uri, headers: {
       'Authorization': 'Bearer $token',
       'Accept': 'application/json',
@@ -35,8 +98,7 @@ class HistoryRepository {
 
     if (kDebugMode) {
       // ignore: avoid_print
-      print('DEBUG History: Response status: ${response.statusCode}');
-      print('DEBUG History: Response body: ${response.body}');
+      print('HISTORY: Response status: ${response.statusCode}');
     }
 
     if (response.statusCode != 200) {
@@ -50,24 +112,6 @@ class HistoryRepository {
         .toList(growable: false);
     final int total = (jsonBody['total'] as num?)?.toInt() ?? items.length;
 
-    return TranscriptHistory(items: items, total: total);
-  }
-  
-  Future<void> _debugToken(String token) async {
-    try {
-      final uri = Uri.parse('$backendBaseUrl/auth/debug-token');
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'token=$token',
-      );
-      // ignore: avoid_print
-      print('DEBUG Token Test: ${response.statusCode}');
-      // ignore: avoid_print
-      print('DEBUG Token Result: ${response.body}');
-    } catch (e) {
-      // ignore: avoid_print
-      print('DEBUG Token Error: $e');
-    }
+    return TranscriptHistory(items: items, total: total, fromCache: false);
   }
 }
