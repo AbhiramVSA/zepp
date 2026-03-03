@@ -1,4 +1,4 @@
-# VoiceAI
+# zepp
 
 A full-stack voice transcription application that captures audio and converts speech to text in real time. Built with a FastAPI backend and Flutter frontend, it provides user authentication, persistent transcript history, and cross-platform support.
 
@@ -92,7 +92,7 @@ graph LR
 ## Project Structure
 
 ```
-voice-app/
+zepp-app/
   backend/
     pyproject.toml
     app/
@@ -241,7 +241,7 @@ Backend URLs are set at build time via Dart defines:
 GET /
 ```
 
-Returns `{"status": "ok", "message": "VoiceAI API is running"}`.
+Returns `{"status": "ok", "message": "zepp API is running"}`.
 
 ### Authentication
 
