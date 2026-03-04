@@ -8,9 +8,9 @@ import 'core/database/app_database.dart';
 import 'core/theme_notifier.dart';
 import 'features/authentication/repository/auth_repository.dart';
 import 'features/authentication/viewmodel/auth_viewmodel.dart';
-import 'features/home/repository/history_repository_v2.dart';
+import 'features/home/repository/history_repository.dart';
 import 'features/home/view/home_view.dart';
-import 'features/home/viewmodel/history_viewmodel_v2.dart';
+import 'features/home/viewmodel/history_viewmodel.dart';
 import 'features/transcribe/repository/transcribe_repository.dart';
 import 'features/transcribe/viewmodel/transcribe_viewmodel.dart';
 

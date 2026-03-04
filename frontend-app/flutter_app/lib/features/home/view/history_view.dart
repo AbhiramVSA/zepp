@@ -7,18 +7,8 @@ import 'package:provider/provider.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/cache/cached_transcript.dart';
 import '../../../core/widgets/glass_widgets.dart';
-import '../viewmodel/history_viewmodel_v2.dart';
+import '../viewmodel/history_viewmodel.dart';
 
-/// History view displaying transcript list with production-grade caching support.
-///
-/// Features:
-/// - Cache-first loading with instant display
-/// - Background refresh indicator
-/// - Pull-to-refresh
-/// - Optimistic item display with sync status
-/// - Failed item retry/delete actions
-/// - Pending sync count indicator
-/// - Pagination support (load more)
 class HistoryView extends StatefulWidget {
   const HistoryView({super.key});
 
@@ -255,7 +245,6 @@ class _HistoryViewState extends State<HistoryView> {
   }
 }
 
-/// Status bar showing cache state, sync status, and refresh options.
 class _StatusBar extends StatelessWidget {
   const _StatusBar({
     required this.isFromCache,
@@ -410,7 +399,6 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-/// Transcript card with sync status indicators.
 class _TranscriptCard extends StatelessWidget {
   const _TranscriptCard({
     required this.transcript,

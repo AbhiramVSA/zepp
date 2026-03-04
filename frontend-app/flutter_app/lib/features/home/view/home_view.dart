@@ -8,7 +8,7 @@ import '../../../core/widgets/glass_widgets.dart';
 import '../../authentication/view/auth_view.dart';
 import '../../authentication/viewmodel/auth_viewmodel.dart';
 import '../../transcribe/view/transcribe_view.dart';
-import 'history_view_v2.dart';
+import 'history_view.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});

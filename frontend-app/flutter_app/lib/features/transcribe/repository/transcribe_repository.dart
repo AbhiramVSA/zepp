@@ -13,15 +13,14 @@ import '../../../core/app_config.dart' as config;
 
 /// Handles audio capture and WebSocket streaming to the backend.
 class TranscribeRepository {
-  // For Android emulators, host loopback is 10.0.2.2
-    TranscribeRepository({String? backendWsUrl})
+  TranscribeRepository({String? backendWsUrl})
       : backendWsUrl = backendWsUrl ?? config.backendWsUrl;
 
-    final String backendWsUrl;
-    String? _authToken;
+  final String backendWsUrl;
+  String? _authToken;
 
-    final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
-    final StreamController<Uint8List> _pcmController =
+  final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
+  final StreamController<Uint8List> _pcmController =
       StreamController<Uint8List>.broadcast();
   final StreamController<String> _transcriptionController =
       StreamController<String>.broadcast();
@@ -34,9 +33,8 @@ class TranscribeRepository {
   bool _isInitialized = false;
 
   Stream<String> get transcriptionStream => _transcriptionController.stream;
-  
-  /// Stream that emits when a transcript has been successfully persisted to the server.
-  /// Listen to this to know when to refresh history.
+
+  /// Emits when a transcript has been persisted to the server.
   Stream<void> get persistedStream => _persistedController.stream;
 
   void setAuthToken(String? token) {
@@ -60,17 +58,10 @@ class TranscribeRepository {
     _wsSubscription = _channel!.stream.listen(
       _handleWsMessage,
       onError: (Object err, [StackTrace? st]) {
-        if (kDebugMode) {
-          // ignore: avoid_print
-          print('WS error: $err');
-        }
         _transcriptionController.addError(err, st);
       },
       onDone: () {
-        if (kDebugMode) {
-          // ignore: avoid_print
-          print('WS closed');
-        }
+        if (kDebugMode) print('WS closed');
       },
       cancelOnError: true,
     );
@@ -117,10 +108,8 @@ class TranscribeRepository {
   }
 
   void _sendPcmChunk(Uint8List data) {
-    if (_channel == null) return;
-    if (data.isNotEmpty) {
-      _channel!.sink.add(data);
-    }
+    if (_channel == null || data.isEmpty) return;
+    _channel!.sink.add(data);
   }
 
   void _handleWsMessage(dynamic message) {
@@ -140,7 +129,6 @@ class TranscribeRepository {
 
       if (text != null) {
         _transcriptionController.add(text);
-        // Fire-and-forget persist if authenticated
         unawaited(_persistTranscript(text));
       } else if (error != null) {
         _transcriptionController.addError(error);
@@ -163,23 +151,9 @@ class TranscribeRepository {
   }
 
   Future<void> _persistTranscript(String text) async {
-    if (kDebugMode) {
-      // ignore: avoid_print
-      print('DEBUG: _persistTranscript called with text: "${text.substring(0, text.length > 50 ? 50 : text.length)}..."');
-      print('DEBUG: authToken is ${_authToken == null ? 'NULL' : (_authToken!.isEmpty ? 'EMPTY' : 'SET (${_authToken!.length} chars)')}');
-    }
-    if (_authToken == null || _authToken!.isEmpty) {
-      if (kDebugMode) {
-        // ignore: avoid_print
-        print('DEBUG: No auth token, skipping persist');
-      }
-      return;
-    }
+    if (_authToken == null || _authToken!.isEmpty) return;
+
     final uri = Uri.parse('${config.backendBaseUrl}/transcripts/');
-    if (kDebugMode) {
-      // ignore: avoid_print
-      print('DEBUG: POST to $uri');
-    }
     try {
       final response = await http.post(
         uri,
@@ -190,30 +164,13 @@ class TranscribeRepository {
         },
         body: jsonEncode({'text': text}),
       );
-      if (kDebugMode) {
-        // ignore: avoid_print
-        print('DEBUG: Response status: ${response.statusCode}');
-        print('DEBUG: Response body: ${response.body}');
-      }
-      if (response.statusCode >= 400) {
-        if (kDebugMode) {
-          // ignore: avoid_print
-          print('Persist transcript failed: ${response.statusCode} ${response.body}');
-        }
-      } else {
-        if (kDebugMode) {
-          // ignore: avoid_print
-          print('Transcript saved successfully');
-        }
-        // Notify listeners that transcript was persisted successfully
+      if (response.statusCode < 400) {
         _persistedController.add(null);
+      } else if (kDebugMode) {
+        print('Persist transcript failed: ${response.statusCode}');
       }
-    } catch (e, st) {
-      if (kDebugMode) {
-        // ignore: avoid_print
-        print('Persist transcript exception: $e');
-        print('Stack trace: $st');
-      }
+    } catch (e) {
+      if (kDebugMode) print('Persist transcript error: $e');
     }
   }
 }

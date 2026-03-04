@@ -3,37 +3,10 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/cache/cached_transcript.dart';
 import '../../authentication/viewmodel/auth_viewmodel.dart';
-import '../repository/history_repository_v2.dart';
+import '../repository/history_repository.dart';
 
-/// State of the history view.
-enum HistoryState {
-  /// Initial state, no data loaded.
-  idle,
-  /// Loading data for the first time.
-  loading,
-  /// Data loaded successfully.
-  loaded,
-  /// Refreshing data in the background (pull-to-refresh).
-  refreshing,
-  /// Error loading data.
-  error,
-  /// User is not authenticated.
-  unauthenticated,
-}
+enum HistoryState { idle, loading, loaded, refreshing, error, unauthenticated }
 
-/// ViewModel for transcript history with production-grade caching support.
-///
-/// This ViewModel implements:
-/// - Cache-first loading with background refresh
-/// - Optimistic UI updates for new transcripts
-/// - Offline support with sync queue
-/// - Diff-based UI updates (no unnecessary rebuilds)
-/// - Proper cleanup on logout
-///
-/// The ViewModel coordinates between:
-/// - HistoryRepository for data access
-/// - AuthViewModel for user context
-/// - UI layer for state updates
 class HistoryViewModel extends ChangeNotifier {
   HistoryViewModel(this._repository, this._auth) {
     _auth.addListener(_handleAuthChange);
@@ -66,25 +39,11 @@ class HistoryViewModel extends ChangeNotifier {
   int get pendingSyncCount => _pendingSyncCount;
   bool get hasMore => _hasMore;
   
-  /// Whether the currently displayed data came from cache.
   bool get isFromCache => _dataSource == CacheSource.memory || _dataSource == CacheSource.database;
-  
-  /// Whether a background refresh is in progress.
   bool get isBackgroundRefreshing => _isBackgroundRefreshing;
-  
-  /// Whether there are pending writes waiting to sync.
   bool get hasPendingWrites => _pendingSyncCount > 0;
-  
-  /// Whether there are any failed (unsynced) items.
   bool get hasFailedItems => _items.any((t) => !t.isSynced && !t.isOptimistic);
 
-  /// Load transcript history.
-  ///
-  /// This method:
-  /// 1. Returns cached data immediately if available
-  /// 2. Shows loading indicator only if no cached data
-  /// 3. Triggers background refresh automatically
-  /// 4. Updates UI only if data actually changed
   Future<void> load({bool refresh = false}) async {
     if (!_auth.isAuthenticated || _auth.session == null) {
       _setUnauthenticated();
@@ -166,13 +125,10 @@ class HistoryViewModel extends ChangeNotifier {
     }
   }
 
-  /// Refresh from server (pull-to-refresh).
-  /// Bypasses cache and fetches fresh data.
   Future<void> refresh() async {
     await load(refresh: true);
   }
 
-  /// Load more items for pagination.
   Future<void> loadMore() async {
     if (!_auth.isAuthenticated || _auth.session == null) return;
     if (!_hasMore || _state == HistoryState.loading) return;
@@ -199,10 +155,6 @@ class HistoryViewModel extends ChangeNotifier {
     }
   }
 
-  /// Add a new transcript with optimistic update.
-  ///
-  /// The transcript appears immediately in the UI while being synced
-  /// to the server in the background.
   Future<CachedTranscript> addTranscript({
     required String text,
     double? confidence,
@@ -236,7 +188,6 @@ class HistoryViewModel extends ChangeNotifier {
     return transcript;
   }
 
-  /// Retry syncing a failed transcript.
   Future<void> retryFailedTranscript(String tempId) async {
     if (!_auth.isAuthenticated || _auth.session == null) return;
 
@@ -246,7 +197,6 @@ class HistoryViewModel extends ChangeNotifier {
     );
   }
 
-  /// Delete a failed transcript.
   Future<void> deleteFailedTranscript(String tempId) async {
     if (!_auth.isAuthenticated || _auth.session == null) return;
 
@@ -262,7 +212,6 @@ class HistoryViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Manually trigger sync of pending operations.
   Future<void> syncPending() async {
     if (!_auth.isAuthenticated || _auth.session == null) return;
 
@@ -282,16 +231,11 @@ class HistoryViewModel extends ChangeNotifier {
     }
   }
 
-  /// Clear all cached data (call on logout).
   Future<void> clearCache() async {
     if (_auth.session != null) {
       await _repository.clearUserData(_auth.session!.userId);
     }
   }
-
-  // ============================================================
-  // PRIVATE METHODS
-  // ============================================================
 
   void _setupCacheListener() {
     if (_auth.session == null) return;

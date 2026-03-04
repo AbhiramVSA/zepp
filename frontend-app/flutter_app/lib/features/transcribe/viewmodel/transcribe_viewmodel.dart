@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../authentication/viewmodel/auth_viewmodel.dart';
-import '../../home/viewmodel/history_viewmodel_v2.dart';
+import '../../home/viewmodel/history_viewmodel.dart';
 import '../repository/transcribe_repository.dart';
 
 enum TranscribeState { idle, recording, processing, completed, error }
