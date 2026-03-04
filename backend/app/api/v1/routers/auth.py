@@ -109,46 +109,6 @@ async def refresh(payload: RefreshRequest):
     )
 
 
-@router.post("/debug-token")
-async def debug_token(token: str):
-    """Debug endpoint to test token verification."""
-    from jose import jwt
-    from app.config.settings import settings
-    import base64
-    
-    result = {"token_length": len(token)}
-    
-    # Get unverified claims first
-    try:
-        unverified = jwt.get_unverified_claims(token)
-        result["unverified_claims"] = unverified
-        result["header"] = jwt.get_unverified_header(token)
-    except Exception as e:
-        result["decode_error"] = str(e)
-        return result
-    
-    # Try with raw secret
-    try:
-        payload = jwt.decode(token, settings.SUPABASE_JWT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
-        result["raw_secret_success"] = True
-        result["payload"] = payload
-        return result
-    except Exception as e:
-        result["raw_secret_error"] = str(e)
-    
-    # Try with base64 decoded secret
-    try:
-        decoded_secret = base64.b64decode(settings.SUPABASE_JWT_SECRET)
-        payload = jwt.decode(token, decoded_secret, algorithms=["HS256"], options={"verify_aud": False})
-        result["base64_secret_success"] = True
-        result["payload"] = payload
-        return result
-    except Exception as e:
-        result["base64_secret_error"] = str(e)
-    
-    return result
-
-
 @router.get("/whoami", response_model=UserRead)
 async def whoami(current_user: UserRead = Depends(get_current_user)):
     return current_user

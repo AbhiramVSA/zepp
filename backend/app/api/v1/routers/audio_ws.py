@@ -1,5 +1,6 @@
 import json
 import logging
+import tempfile
 import wave
 from pathlib import Path
 
@@ -13,7 +14,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
-WAV_PATH = Path("/tmp/audio.wav")
 
 
 def write_wav_from_pcm(raw_pcm: bytes, output_path: Path) -> None:
@@ -30,7 +30,7 @@ async def transcribe_wav_file(wav_path: Path) -> str:
         raise RuntimeError("GROQ_API_KEY is not set.")
 
     headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}"}
-    data = {"model": "whisper-large-v3"}
+    data = {"model": "whisper-large-v3-turbo"}
 
     async with httpx.AsyncClient(timeout=120) as client:
         with wav_path.open("rb") as audio_file:
@@ -63,6 +63,7 @@ async def audio_stream(websocket: WebSocket) -> None:
     logger.info("WebSocket connection opened: %s", websocket.client)
 
     buffer = bytearray()
+    wav_path: Path | None = None
 
     try:
         while True:
@@ -76,7 +77,6 @@ async def audio_stream(websocket: WebSocket) -> None:
                 chunk = message.get("bytes") or b""
                 if chunk:
                     buffer.extend(chunk)
-                    logger.info("Received audio chunk (%d bytes)", len(chunk))
                 continue
 
             if message.get("text"):
@@ -91,11 +91,18 @@ async def audio_stream(websocket: WebSocket) -> None:
                         await websocket.send_json({"error": "No audio data received"})
                         break
 
-                    write_wav_from_pcm(bytes(buffer), WAV_PATH)
-                    logger.info("Saved WAV file to %s", WAV_PATH)
+                    # Use a unique temp file per session to avoid collisions
+                    tmp_fd, tmp_path_str = tempfile.mkstemp(suffix=".wav")
+                    wav_path = Path(tmp_path_str)
+                    # Close the fd; write_wav_from_pcm will open by path
+                    import os
+                    os.close(tmp_fd)
+
+                    write_wav_from_pcm(bytes(buffer), wav_path)
+                    logger.info("Saved WAV file (%d bytes PCM)", len(buffer))
 
                     try:
-                        transcription = await transcribe_wav_file(WAV_PATH)
+                        transcription = await transcribe_wav_file(wav_path)
                         logger.info("Transcription completed")
                         await websocket.send_json({"text": transcription})
                     except Exception as exc:  # noqa: BLE001
@@ -111,10 +118,10 @@ async def audio_stream(websocket: WebSocket) -> None:
         logger.info("WebSocket disconnected unexpectedly: %s", websocket.client)
 
     finally:
-        try:
-            WAV_PATH.unlink()
-            logger.info("Temporary WAV file cleaned up")
-        except FileNotFoundError:
-            pass
-        except OSError as exc:
-            logger.warning("Could not delete temporary file: %s", exc)
+        if wav_path is not None:
+            try:
+                wav_path.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                logger.warning("Could not delete temporary file: %s", exc)
