@@ -2,28 +2,12 @@
 
 A full-stack voice transcription application that captures audio and converts speech to text in real time. Built with a FastAPI backend and Flutter frontend, it provides user authentication, persistent transcript history, and cross-platform support.
 
-## Table of Contents
-
-- [Features](#features)
-- [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [API Reference](#api-reference)
-- [Database Schema](#database-schema)
-- [Usage](#usage)
-- [Development](#development)
-- [Contributing](#contributing)
-- [License](#license)
-
 ## Features
 
 - **Real-time voice transcription** -- Stream audio from the device microphone and receive instant text output via the Whisper large-v3-turbo model on Groq.
 - **User authentication** -- Signup, login, and session management powered by Supabase Auth with JWT tokens.
-- **Transcript history** -- Browse, search, and manage all past transcriptions.
-- **Session persistence** -- Automatic session restoration on app restart using secure local storage.
+- **Transcript history** -- Browse, search, and manage all past transcriptions with offline caching.
+- **Offline support** -- Two-tier cache (memory + SQLite) with optimistic writes and background sync queue.
 - **Theming** -- Toggle between dark and light modes.
 - **Cross-platform** -- Supports Android, iOS, Web, Windows, macOS, and Linux.
 
@@ -39,7 +23,7 @@ graph LR
     C -- "Text result" --> B
     A -- "REST API" --> B
     B -- "SQL" --> D[(PostgreSQL<br/>Supabase)]
-    A -- "Local storage" --> E[(SharedPreferences)]
+    A -- "Local cache" --> E[(SQLite + Memory)]
 ```
 
 ### Audio Transcription Flow
@@ -67,27 +51,26 @@ graph LR
 
 | Component        | Technology                    |
 | ---------------- | ----------------------------- |
-| Framework        | FastAPI 0.124+                |
+| Framework        | FastAPI                       |
 | Language         | Python 3.13+                  |
 | ORM              | SQLAlchemy 2.0+ (async)       |
-| Database Driver  | asyncpg 0.29+                 |
+| Database Driver  | asyncpg                       |
 | Authentication   | Supabase Auth, python-jose    |
 | Transcription    | Groq API (Whisper)            |
-| HTTP Client      | httpx 0.28+                   |
-| Configuration    | Pydantic Settings 2.12+       |
+| HTTP Client      | httpx                         |
+| Configuration    | Pydantic Settings             |
 
 ### Frontend
 
 | Component        | Technology                    |
 | ---------------- | ----------------------------- |
 | Framework        | Flutter 3.10+                 |
-| Language         | Dart 3.10+                    |
-| State Management | Provider 6.1                  |
-| Audio Recording  | flutter_sound 9.2             |
-| WebSocket        | web_socket_channel 3.0        |
-| HTTP Client      | http 1.2                      |
-| Local Storage    | shared_preferences 2.2        |
-| Animations       | flutter_animate 4.5           |
+| Language         | Dart                          |
+| State Management | Provider                      |
+| Audio Recording  | flutter_sound                 |
+| WebSocket        | web_socket_channel            |
+| Local Cache      | Drift (SQLite)                |
+| Animations       | flutter_animate               |
 
 ## Project Structure
 
@@ -98,19 +81,17 @@ zepp-app/
     app/
       main.py                       # Application entry point
       api/
-        api.py                      # Router aggregation
+        api.py                      # Router aggregation + health check
         v1/routers/
           audio_ws.py               # WebSocket audio streaming
           auth.py                   # Authentication endpoints
           transcripts.py            # Transcript CRUD
       config/settings.py            # Pydantic-based configuration
-      controllers/
-        audio_transcription.py      # Groq API integration
       crud/
         transcript.py               # Transcript DB operations
         user.py                     # User DB operations
       db/database.py                # Async SQLAlchemy engine
-      deps/auth.py                  # Auth dependencies
+      deps/auth.py                  # Auth dependency injection
       models/
         transcript.py               # Transcript ORM model
         user.py                     # User ORM model
@@ -118,7 +99,7 @@ zepp-app/
         auth.py                     # Auth request/response schemas
         transcript.py               # Transcript schemas
         user.py                     # User schemas
-      utils/security.py             # JWT verification
+      utils/security.py             # JWT verification with caching
 
   frontend-app/flutter_app/
     pubspec.yaml
@@ -127,12 +108,13 @@ zepp-app/
       core/
         app_config.dart             # Backend URL configuration
         app_theme.dart              # Theme definitions
+        cache/                      # Two-tier caching (memory + SQLite)
+        database/                   # Drift database schema
         widgets/                    # Shared UI components
       features/
         authentication/             # Login and signup (MVVM)
         transcribe/                 # Voice recording (MVVM)
         home/                       # Navigation and history (MVVM)
-        account/                    # User settings
 ```
 
 ## Prerequisites
@@ -140,8 +122,7 @@ zepp-app/
 ### Backend
 
 - Python 3.13 or higher
-- pip
-- PostgreSQL database (or a Supabase project)
+- pip (or [uv](https://docs.astral.sh/uv/))
 
 ### Frontend
 
@@ -169,7 +150,9 @@ source .venv/bin/activate        # macOS / Linux
 # Install dependencies
 pip install -e .
 
-# Create .env (see Configuration section)
+# Create .env from example
+cp .env.example .env
+# Edit .env with your credentials (see Configuration section)
 
 # Start the development server
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -185,7 +168,7 @@ cd frontend-app/flutter_app
 # Install dependencies
 flutter pub get
 
-# Run on default emulator
+# Run on default device
 flutter run
 
 # Run with custom backend URLs
@@ -198,7 +181,7 @@ flutter run \
 
 ### Environment Variables
 
-Create a `.env` file in the `backend/` directory:
+Create a `.env` file in the `backend/` directory (see `.env.example`):
 
 ```env
 DATABASE_URL=postgresql+asyncpg://user:password@host:port/database
@@ -238,10 +221,10 @@ Backend URLs are set at build time via Dart defines:
 ### Health Check
 
 ```
-GET /
+GET /health
 ```
 
-Returns `{"status": "ok", "message": "zepp API is running"}`.
+Returns `{"status": "ok"}`.
 
 ### Authentication
 
@@ -321,17 +304,10 @@ erDiagram
         jsonb metadata "Nullable"
         text audio_url "Nullable"
         timestamp created_at "Default: now()"
+        timestamp updated_at "Default: now()"
     }
     users ||--o{ transcripts : "has many"
 ```
-
-## Usage
-
-**Recording** -- Open the Transcribe tab, grant microphone permissions, tap the microphone button, speak, and tap again to stop. The transcription appears on screen and is saved automatically when logged in.
-
-**History** -- Log in and navigate to the History tab to browse past transcriptions.
-
-**Account** -- View profile information, toggle themes, or log out from the Account tab.
 
 ## Development
 
@@ -373,15 +349,6 @@ flutter build apk --release --dart-define=BACKEND_BASE_URL=https://api.productio
 flutter build ios --release --dart-define=BACKEND_BASE_URL=https://api.production.com
 flutter build web --release --dart-define=BACKEND_BASE_URL=https://api.production.com
 ```
-
-## Contributing
-
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit your changes with a descriptive message.
-4. Push and open a pull request.
-
-Follow the existing code style, add tests for new functionality, and ensure all tests pass before submitting.
 
 ## License
 
