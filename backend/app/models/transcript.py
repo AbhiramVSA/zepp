@@ -8,12 +8,6 @@ from app.models.base import Base
 
 
 class Transcript(Base):
-    """
-    Transcript model representing a single transcription record.
-    
-    The updated_at column enables conditional fetching via If-Modified-Since
-    and ETag headers, allowing clients to skip re-downloading unchanged data.
-    """
     __tablename__ = "transcripts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -24,8 +18,6 @@ class Transcript(Base):
     meta = Column("metadata", JSONB, nullable=True)
     audio_url = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False, index=True)
-    # updated_at tracks the last modification time for conditional fetching.
-    # Automatically set on insert and updated on any row modification via onupdate.
     updated_at = Column(
         TIMESTAMP(timezone=True),
         server_default=func.now(),

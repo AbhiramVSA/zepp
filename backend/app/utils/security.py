@@ -3,7 +3,7 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 from functools import lru_cache
-from typing import Any, Dict, Tuple
+from typing import Any
 
 from cachetools import TTLCache
 from fastapi import HTTPException, status
@@ -13,10 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Cache for verified tokens: token_hash -> (payload, expiry_time)
 # Max 1000 tokens, 5 minute TTL (tokens are re-verified after TTL)
-_token_cache: TTLCache[str, Dict[str, Any]] = TTLCache(maxsize=1000, ttl=300)
-
-# Cache for the working secret format per secret hash
-_secret_format_cache: Dict[str, Tuple[str, bytes | str]] = {}
+_token_cache: TTLCache[str, dict[str, Any]] = TTLCache(maxsize=1000, ttl=300)
 
 
 def _get_token_hash(token: str) -> str:
@@ -25,7 +22,7 @@ def _get_token_hash(token: str) -> str:
 
 
 @lru_cache(maxsize=10)
-def _prepare_secret(secret: str) -> Tuple[str, bytes | str]:
+def _prepare_secret(secret: str) -> tuple[str, bytes | str]:
     """
     Determine and cache the correct secret format.
     Returns tuple of (format_type, prepared_secret).
@@ -50,7 +47,7 @@ def _try_decode_with_secret(
     token: str, 
     secret: bytes | str, 
     options: dict
-) -> Dict[str, Any] | None:
+) -> dict[str, Any] | None:
     """Attempt to decode token with given secret. Returns payload or None."""
     try:
         return jwt.decode(token, secret, algorithms=["HS256"], options=options)
@@ -58,7 +55,7 @@ def _try_decode_with_secret(
         return None
 
 
-def verify_jwt(token: str, secret: str, audience: str | None = None) -> Dict[str, Any]:
+def verify_jwt(token: str, secret: str, audience: str | None = None) -> dict[str, Any]:
     """
     Verify a JWT token with caching for performance.
     
@@ -116,7 +113,7 @@ def _try_base64_decode(secret: str) -> bytes | None:
         return None
 
 
-def _check_expiry(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _check_expiry(payload: dict[str, Any]) -> dict[str, Any]:
     """Check if token is expired."""
     exp = payload.get("exp")
     if exp is not None:

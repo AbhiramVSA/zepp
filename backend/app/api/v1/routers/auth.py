@@ -3,38 +3,35 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.config.settings import settings
 from app.deps.auth import get_current_user
-from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse, SignupRequest
+from app.schemas.auth import LoginRequest, RefreshRequest, SignupRequest, TokenResponse
 from app.schemas.user import UserRead
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+_SUPABASE_TIMEOUT = 30
 
-@router.post("/signup", response_model=TokenResponse)
-async def signup(payload: SignupRequest):
-    """Register a new user via Supabase Auth."""
-    signup_url = f"{settings.SUPABASE_URL}/auth/v1/signup"
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            signup_url,
-            headers={
-                "apikey": settings.SUPABASE_KEY,
-                "Authorization": f"Bearer {settings.SUPABASE_KEY}",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-            json={"email": payload.email, "password": payload.password},
-        )
+def _supabase_headers() -> dict[str, str]:
+    return {
+        "apikey": settings.SUPABASE_KEY,
+        "Authorization": f"Bearer {settings.SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
 
-    if resp.status_code not in (status.HTTP_200_OK, status.HTTP_201_CREATED):
-        error_data = resp.json() if resp.content else {}
-        detail = error_data.get("error_description") or error_data.get("msg") or "Signup failed"
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
-    data = resp.json()
+def _extract_error(resp: httpx.Response, fallback: str) -> str:
+    if not resp.content:
+        return fallback
+    try:
+        data = resp.json()
+        return data.get("error_description") or data.get("msg") or fallback
+    except Exception:
+        return fallback
+
+
+def _build_token_response(data: dict) -> TokenResponse:
     user = data.get("user") or {}
-    
-    # If email confirmation is required, access_token may be None
     return TokenResponse(
         access_token=data.get("access_token"),
         refresh_token=data.get("refresh_token"),
@@ -45,68 +42,64 @@ async def signup(payload: SignupRequest):
     )
 
 
+@router.post("/signup", response_model=TokenResponse)
+async def signup(payload: SignupRequest):
+    url = f"{settings.SUPABASE_URL}/auth/v1/signup"
+
+    async with httpx.AsyncClient(timeout=_SUPABASE_TIMEOUT) as client:
+        resp = await client.post(
+            url,
+            headers=_supabase_headers(),
+            json={"email": payload.email, "password": payload.password},
+        )
+
+    if resp.status_code not in (status.HTTP_200_OK, status.HTTP_201_CREATED):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_extract_error(resp, "Signup failed"),
+        )
+
+    return _build_token_response(resp.json())
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest):
-    token_url = f"{settings.SUPABASE_URL}/auth/v1/token?grant_type=password"
+    url = f"{settings.SUPABASE_URL}/auth/v1/token?grant_type=password"
 
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=_SUPABASE_TIMEOUT) as client:
         resp = await client.post(
-            token_url,
-            headers={
-                "apikey": settings.SUPABASE_KEY,
-                "Authorization": f"Bearer {settings.SUPABASE_KEY}",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
+            url,
+            headers=_supabase_headers(),
             json={"email": payload.email, "password": payload.password},
         )
 
     if resp.status_code != status.HTTP_200_OK:
-        detail = resp.json().get("error_description") if resp.content else "Login failed"
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=_extract_error(resp, "Login failed"),
+        )
 
-    data = resp.json()
-    user = data.get("user") or {}
-    return TokenResponse(
-        access_token=data.get("access_token"),
-        refresh_token=data.get("refresh_token"),
-        token_type=data.get("token_type"),
-        expires_in=data.get("expires_in"),
-        user_id=user.get("id"),
-        email=user.get("email"),
-    )
+    return _build_token_response(resp.json())
 
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(payload: RefreshRequest):
-    token_url = f"{settings.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token"
+    url = f"{settings.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token"
 
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=_SUPABASE_TIMEOUT) as client:
         resp = await client.post(
-            token_url,
-            headers={
-                "apikey": settings.SUPABASE_KEY,
-                "Authorization": f"Bearer {settings.SUPABASE_KEY}",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
+            url,
+            headers=_supabase_headers(),
             json={"refresh_token": payload.refresh_token},
         )
 
     if resp.status_code != status.HTTP_200_OK:
-        detail = resp.json().get("error_description") if resp.content else "Refresh failed"
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=_extract_error(resp, "Refresh failed"),
+        )
 
-    data = resp.json()
-    user = data.get("user") or {}
-    return TokenResponse(
-        access_token=data.get("access_token"),
-        refresh_token=data.get("refresh_token"),
-        token_type=data.get("token_type"),
-        expires_in=data.get("expires_in"),
-        user_id=user.get("id"),
-        email=user.get("email"),
-    )
+    return _build_token_response(resp.json())
 
 
 @router.get("/whoami", response_model=UserRead)

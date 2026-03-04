@@ -1,5 +1,5 @@
 from datetime import datetime
-from email.utils import parsedate_to_datetime, format_datetime
+from email.utils import format_datetime, parsedate_to_datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
@@ -20,10 +20,6 @@ async def create_transcript(
     current_user: Annotated[UserRead, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    """
-    Create a new transcript for the authenticated user.
-    Returns the created transcript with server-assigned ID and timestamps.
-    """
     transcript = await crud_transcript.create(session, user_id=current_user.id, payload=payload)
     return TranscriptRead.model_validate(transcript)
 
@@ -41,25 +37,6 @@ async def list_transcripts(
     if_modified_since: str | None = Header(None, alias="If-Modified-Since"),
     if_none_match: str | None = Header(None, alias="If-None-Match"),
 ):
-    """
-    List transcripts for the authenticated user with pagination.
-    
-    Supports conditional fetching for efficient caching:
-    
-    - If-Modified-Since: Returns 304 Not Modified if no transcripts have been
-      updated since the specified timestamp.
-    - If-None-Match: Returns 304 Not Modified if the ETag matches, indicating
-      the content hasn't changed.
-    
-    Response headers:
-    - Last-Modified: Timestamp of most recently updated transcript
-    - ETag: Content-based hash for cache validation
-    - Cache-Control: Caching directives for clients
-    
-    The response includes last_updated and etag fields in the body for clients
-    that cannot access response headers (e.g., some mobile HTTP libraries).
-    """
-    # Get the latest updated_at timestamp for conditional request handling
     last_updated = await crud_transcript.get_last_updated(
         session,
         user_id=current_user.id,
@@ -67,21 +44,16 @@ async def list_transcripts(
         end_date=end_date,
         q=q,
     )
-    
-    # Handle If-Modified-Since conditional request
-    # If client's cached data is still fresh, return 304 to save bandwidth
+
+    # If-Modified-Since: return 304 if data hasn't changed
     if if_modified_since and last_updated:
         try:
             client_timestamp = parsedate_to_datetime(if_modified_since)
-            # Use UTC comparison; allow 1 second tolerance for rounding
             if last_updated <= client_timestamp:
-                response.status_code = status.HTTP_304_NOT_MODIFIED
                 return Response(status_code=status.HTTP_304_NOT_MODIFIED)
         except (ValueError, TypeError):
-            # Invalid header format, ignore and proceed with full response
             pass
-    
-    # Fetch items and count
+
     items = await crud_transcript.get_by_user(
         session,
         user_id=current_user.id,
@@ -98,27 +70,21 @@ async def list_transcripts(
         end_date=end_date,
         q=q,
     )
-    
-    # Compute ETag from content
+
     etag = crud_transcript.compute_etag(items, total)
-    
-    # Handle If-None-Match conditional request
-    # Client sends previously received ETag; if unchanged, return 304
+
+    # If-None-Match: return 304 if ETag matches
     if if_none_match:
-        # Strip quotes and compare
         client_etag = if_none_match.strip('"')
         server_etag = etag.strip('"')
         if client_etag == server_etag:
-            response.status_code = status.HTTP_304_NOT_MODIFIED
             return Response(status_code=status.HTTP_304_NOT_MODIFIED)
-    
-    # Set cache headers for client-side caching
+
     if last_updated:
         response.headers["Last-Modified"] = format_datetime(last_updated, usegmt=True)
     response.headers["ETag"] = etag
-    # Allow private caching, must revalidate after 60 seconds
     response.headers["Cache-Control"] = "private, max-age=60, must-revalidate"
-    
+
     items_read = [TranscriptRead.model_validate(item) for item in items]
     return TranscriptList(
         items=items_read,
@@ -138,28 +104,20 @@ async def get_transcript(
     session: Annotated[AsyncSession, Depends(get_session)],
     if_none_match: str | None = Header(None, alias="If-None-Match"),
 ):
-    """
-    Get a single transcript by ID.
-    
-    Enforces user ownership: users can only access their own transcripts.
-    Supports ETag-based conditional fetching via If-None-Match header.
-    """
     transcript = await crud_transcript.get_by_id(session, transcript_id=transcript_id, user_id=current_user.id)
     if not transcript:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcript not found")
-    
-    # Compute single-item ETag from ID and updated_at
+
     etag = f'"{transcript.id}-{transcript.updated_at.isoformat()}"'
-    
-    # Handle conditional request
+
     if if_none_match:
         client_etag = if_none_match.strip('"')
         server_etag = etag.strip('"')
         if client_etag == server_etag:
             return Response(status_code=status.HTTP_304_NOT_MODIFIED)
-    
+
     response.headers["ETag"] = etag
     response.headers["Last-Modified"] = format_datetime(transcript.updated_at, usegmt=True)
     response.headers["Cache-Control"] = "private, max-age=300, must-revalidate"
-    
+
     return TranscriptRead.model_validate(transcript)
