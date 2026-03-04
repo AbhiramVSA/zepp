@@ -108,30 +108,6 @@ async def get_last_updated(
     return result.scalar_one_or_none()
 
 
-async def get_transcripts_modified_since(
-    session: AsyncSession,
-    user_id: str,
-    since: datetime,
-    limit: int = 50,
-    offset: int = 0,
-) -> list[Transcript]:
-    """
-    Fetch transcripts that have been updated since the given timestamp.
-    Used to return only changed records when client has partial cache.
-    """
-    stmt = (
-        select(Transcript)
-        .where(
-            Transcript.user_id == user_id,
-            Transcript.updated_at > since,
-        )
-        .order_by(Transcript.created_at.desc())
-        .limit(limit)
-        .offset(offset)
-    )
-    result = await session.execute(stmt)
-    return list(result.scalars().all())
-
 
 def compute_etag(transcripts: list[Transcript], total: int) -> str:
     """

@@ -47,11 +47,3 @@ class TranscriptList(BaseModel):
     etag: str | None = None
 
 
-class TranscriptListMetadata(BaseModel):
-    """
-    Lightweight metadata-only response for checking if data has changed.
-    Used when client has cached data and only needs to verify freshness.
-    """
-    total: int
-    last_updated: datetime | None = None
-    etag: str | None = None
