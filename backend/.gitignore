@@ -45,7 +45,7 @@ htmlcov/
 *.log
 
 # Local environment
-.env*
-*.env
+.env
+.env.local
 *.local
 __pypackages__/

@@ -21,3 +21,6 @@ Desktop.ini
 *.swp
 *.swo
 *~
+
+# Build artifacts / logs
+*.log
