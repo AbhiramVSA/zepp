@@ -34,7 +34,12 @@
 
 ### Backend
 
-`backend/pyproject.toml` names `backend/README.md`. The repository has no such file. The source README uses `pip install -e .`, but that setup path has no test result. The locked `uv` command below installs dependencies without the project package.
+`backend/pyproject.toml` names `backend/README.md`, but that file is absent. The original README gives this editable-install command. This command has not been tested in this refresh:
+
+```bash
+cd backend
+pip install -e .
+```
 
 Create `backend/.env` from `backend/.env.example`. The Configuration section lists the values that the backend reads.
 
@@ -42,7 +47,7 @@ Run the backend from the repository root:
 
 ```bash
 cd backend
-uv sync --locked --no-install-project --extra dev
+uv sync --locked --extra dev
 uv run --no-sync uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
