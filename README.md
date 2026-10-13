@@ -18,7 +18,7 @@
 
 ## Key Features
 
-- **Speech capture:** The Flutter client sends mono, 16 kHz PCM audio to `/ws/audio`. The backend buffers the audio and sends it to Groq after it receives `{"event":"end"}`.
+- **Speech capture:** The Flutter client sends 16-bit, mono, 16 kHz PCM audio to `/ws/audio`. The backend buffers the audio and sends it to Groq after it receives `{"event":"end"}`.
 - **Transcription:** The backend uses Groq Whisper with the `whisper-large-v3-turbo` model.
 - **Authentication and history:** Sign-up and login use Supabase Auth. The backend writes transcript records to PostgreSQL. Signed-in users can read transcript history.
 - **Local history:** The Flutter client uses memory and SQLite caches for transcript history.
@@ -60,7 +60,7 @@ Use `http://localhost:8000/health` to check the backend. Open `http://localhost:
 
 ### Flutter App
 
-Run the app from `frontend-app/flutter_app`:
+From a fresh shell at the repository root, run these commands to start the app in `frontend-app/flutter_app`:
 
 ```bash
 cd frontend-app/flutter_app
@@ -68,7 +68,7 @@ flutter pub get
 flutter run
 ```
 
-The default backend URLs use `10.0.2.2` for Android emulators. Set `BACKEND_BASE_URL` and `BACKEND_WS_URL` with `--dart-define` for other devices.
+The default backend URLs use `10.0.2.2` for Android emulators. For a physical device on a trusted local network, replace `--host 127.0.0.1` with `--host 0.0.0.0` or another reachable host interface. Set `BACKEND_BASE_URL` and `BACKEND_WS_URL` with `--dart-define` to the same reachable host address. These client URL settings do not change the backend listener.
 
 ## Configuration
 
@@ -79,11 +79,11 @@ The Flutter client reads `BACKEND_BASE_URL` and `BACKEND_WS_URL` at build time. 
 ## API
 
 - `GET /health` checks the backend.
-- `WS /ws/audio` accepts mono, 16 kHz PCM audio. Send `{"event":"end"}` when you stop. The backend sends the transcript in its response.
+- `WS /ws/audio` accepts 16-bit, mono, 16 kHz PCM audio. Send `{"event":"end"}` when you stop. The backend sends the transcript in its response.
 
 ## Tests
 
-Run the available tests from each project directory.
+For each test block, start a fresh shell at the repository root, then run its commands.
 
 ```bash
 cd backend
