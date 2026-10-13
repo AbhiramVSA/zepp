@@ -1,355 +1,104 @@
-# zepp
+<h1 align="center">
+  <img src="assets/zepp-logo.png" alt="A sound waveform that becomes transcript lines" width="200">
+  <br>
+  zepp
+  <br>
+</h1>
 
-A full-stack voice transcription application that captures audio and converts speech to text in real time. Built with a FastAPI backend and Flutter frontend, it provides user authentication, persistent transcript history, and cross-platform support.
+<h4 align="center">Record speech in Flutter and get a transcript when you stop.</h4>
 
-## Features
+<p align="center">
+  <img alt="FastAPI backend" src="https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&amp;logoColor=white">
+  <img alt="Python requirement greater than or equal to 3.13" src="https://img.shields.io/badge/Python-%3E%3D3.13-3776AB?logo=python&amp;logoColor=white">
+  <img alt="Flutter client" src="https://img.shields.io/badge/Flutter-client-02569B?logo=flutter&amp;logoColor=white">
+  <img alt="Dart SDK constraint caret 3.10.3" src="https://img.shields.io/badge/Dart-%5E3.10.3-0175C2?logo=dart&amp;logoColor=white">
+</p>
 
-- **Real-time voice transcription** -- Stream audio from the device microphone and receive instant text output via the Whisper large-v3-turbo model on Groq.
-- **User authentication** -- Signup, login, and session management powered by Supabase Auth with JWT tokens.
-- **Transcript history** -- Browse, search, and manage all past transcriptions with offline caching.
-- **Offline support** -- Two-tier cache (memory + SQLite) with optimistic writes and background sync queue.
-- **Theming** -- Toggle between dark and light modes.
-- **Cross-platform** -- Supports Android, iOS, Web, Windows, macOS, and Linux.
+<p align="center"><a href="#key-features">Features</a> • <a href="#how-to-use">Setup</a> • <a href="#license">License</a></p>
 
-## Architecture
+## Key Features
 
-### System Overview
+- **Speech capture:** The Flutter client sends 16-bit, mono, 16 kHz PCM audio to `/ws/audio`. The backend buffers the audio and sends it to Groq after it receives `{"event":"end"}`.
+- **Transcription:** The backend uses Groq Whisper with the `whisper-large-v3-turbo` model.
+- **Authentication and history:** Sign-up and login use Supabase Auth. The backend writes transcript records to PostgreSQL. Signed-in users can read transcript history.
+- **Local history:** The Flutter client uses memory and SQLite caches for transcript history.
+- **Display:** Users can change the theme and copy transcript text to the clipboard.
 
-```mermaid
-graph LR
-    A[Flutter App] -- "PCM audio (WebSocket)" --> B[FastAPI Backend]
-    B -- "Transcription result" --> A
-    B -- "Whisper API (HTTPS)" --> C[Groq API]
-    C -- "Text result" --> B
-    A -- "REST API" --> B
-    B -- "SQL" --> D[(PostgreSQL<br/>Supabase)]
-    A -- "Local cache" --> E[(SQLite + Memory)]
-```
+## How To Use
 
-### Audio Transcription Flow
+### Requirements
 
-1. The Flutter app captures audio using the device microphone (PCM 16-bit, 16 kHz, mono).
-2. Audio chunks stream in real time over a WebSocket connection to the `/ws/audio` endpoint.
-3. The backend buffers incoming chunks until it receives an `end` event.
-4. Raw PCM audio is converted to WAV format with appropriate headers.
-5. The WAV file is sent to the Groq API using the Whisper transcription model.
-6. The transcription result is returned to the client over the same WebSocket.
-7. If the user is authenticated, the transcript is automatically persisted to the database.
-
-### Authentication Flow
-
-1. The user submits credentials via the login or signup screen.
-2. The backend proxies the request to Supabase Auth.
-3. On success, JWT access and refresh tokens are returned.
-4. Tokens are stored in SharedPreferences for session persistence.
-5. Protected API routes validate the JWT against the Supabase JWT secret.
-6. Users are created in the local database on first authenticated request.
-
-## Tech Stack
+- Python 3.13+ and [uv](https://docs.astral.sh/uv/)
+- Flutter SDK
+- Dart SDK constraint: `^3.10.3` in `pubspec.yaml`
+- Android Studio for Android builds
+- Xcode for iOS builds
+- A Supabase project for authentication
+- A PostgreSQL database for transcript records
+- A Groq API key for transcription
 
 ### Backend
 
-| Component        | Technology                    |
-| ---------------- | ----------------------------- |
-| Framework        | FastAPI                       |
-| Language         | Python 3.13+                  |
-| ORM              | SQLAlchemy 2.0+ (async)       |
-| Database Driver  | asyncpg                       |
-| Authentication   | Supabase Auth, python-jose    |
-| Transcription    | Groq API (Whisper)            |
-| HTTP Client      | httpx                         |
-| Configuration    | Pydantic Settings             |
-
-### Frontend
-
-| Component        | Technology                    |
-| ---------------- | ----------------------------- |
-| Framework        | Flutter 3.10+                 |
-| Language         | Dart                          |
-| State Management | Provider                      |
-| Audio Recording  | flutter_sound                 |
-| WebSocket        | web_socket_channel            |
-| Local Cache      | Drift (SQLite)                |
-| Animations       | flutter_animate               |
-
-## Project Structure
-
-```
-zepp-app/
-  backend/
-    pyproject.toml
-    app/
-      main.py                       # Application entry point
-      api/
-        api.py                      # Router aggregation + health check
-        v1/routers/
-          audio_ws.py               # WebSocket audio streaming
-          auth.py                   # Authentication endpoints
-          transcripts.py            # Transcript CRUD
-      config/settings.py            # Pydantic-based configuration
-      crud/
-        transcript.py               # Transcript DB operations
-        user.py                     # User DB operations
-      db/database.py                # Async SQLAlchemy engine
-      deps/auth.py                  # Auth dependency injection
-      models/
-        transcript.py               # Transcript ORM model
-        user.py                     # User ORM model
-      schemas/
-        auth.py                     # Auth request/response schemas
-        transcript.py               # Transcript schemas
-        user.py                     # User schemas
-      utils/security.py             # JWT verification with caching
-
-  frontend-app/flutter_app/
-    pubspec.yaml
-    lib/
-      main.dart                     # Application entry point
-      core/
-        app_config.dart             # Backend URL configuration
-        app_theme.dart              # Theme definitions
-        cache/                      # Two-tier caching (memory + SQLite)
-        database/                   # Drift database schema
-        widgets/                    # Shared UI components
-      features/
-        authentication/             # Login and signup (MVVM)
-        transcribe/                 # Voice recording (MVVM)
-        home/                       # Navigation and history (MVVM)
-```
-
-## Prerequisites
-
-### Backend
-
-- Python 3.13 or higher
-- pip (or [uv](https://docs.astral.sh/uv/))
-
-### Frontend
-
-- Flutter SDK 3.10.3 or higher
-- Android Studio or Xcode (for mobile development)
-- A physical device or emulator
-
-### External Services
-
-- **Supabase** -- authentication and PostgreSQL hosting
-- **Groq** -- Whisper transcription API
-
-## Installation
-
-### Backend Setup
+`backend/pyproject.toml` names `backend/README.md`, but that file is absent. The original README gives this editable-install command. This command has not been tested in this refresh:
 
 ```bash
 cd backend
-
-# Create and activate a virtual environment
-python -m venv .venv
-source .venv/bin/activate        # macOS / Linux
-.venv\Scripts\activate           # Windows
-
-# Install dependencies
 pip install -e .
-
-# Create .env from example
-cp .env.example .env
-# Edit .env with your credentials (see Configuration section)
-
-# Start the development server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The API will be available at `http://localhost:8000`. Interactive docs are at `http://localhost:8000/docs`.
+Create `backend/.env` from `backend/.env.example`. The Configuration section lists the values that the backend reads.
 
-### Frontend Setup
+Run the backend from the repository root:
+
+```bash
+cd backend
+uv sync --locked --extra dev
+uv run --no-sync uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Use `http://localhost:8000/health` to check the backend. Open `http://localhost:8000/docs` for the API docs.
+
+### Flutter App
+
+From a fresh shell at the repository root, run these commands to start the app in `frontend-app/flutter_app`:
 
 ```bash
 cd frontend-app/flutter_app
-
-# Install dependencies
 flutter pub get
-
-# Run on default device
 flutter run
-
-# Run with custom backend URLs
-flutter run \
-  --dart-define=BACKEND_BASE_URL=http://your-server:8000 \
-  --dart-define=BACKEND_WS_URL=ws://your-server:8000/ws/audio
 ```
+
+The default backend URLs use `10.0.2.2` for Android emulators. For a physical device on a trusted local network, replace `--host 127.0.0.1` with `--host 0.0.0.0` or another reachable host interface. Set `BACKEND_BASE_URL` and `BACKEND_WS_URL` with `--dart-define` to the same reachable host address. These client URL settings do not change the backend listener.
 
 ## Configuration
 
-### Environment Variables
+The backend reads `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_JWT_SECRET`, and `GROQ_API_KEY` from `backend/.env`. `JWT_AUDIENCE` is optional.
 
-Create a `.env` file in the `backend/` directory (see `.env.example`):
+The Flutter client reads `BACKEND_BASE_URL` and `BACKEND_WS_URL` at build time. Its default values are `http://10.0.2.2:8000` and `ws://10.0.2.2:8000/ws/audio`.
 
-```env
-DATABASE_URL=postgresql+asyncpg://user:password@host:port/database
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your_supabase_anon_key
-SUPABASE_JWT_SECRET=your_jwt_secret
-JWT_AUDIENCE=
-GROQ_API_KEY=your_groq_api_key
-```
+## API
 
-| Variable             | Description                                                                 |
-| -------------------- | --------------------------------------------------------------------------- |
-| `DATABASE_URL`       | PostgreSQL connection string using the asyncpg driver.                      |
-| `SUPABASE_URL`       | Supabase project URL (Project Settings > API).                              |
-| `SUPABASE_KEY`       | Supabase anon or service role key.                                          |
-| `SUPABASE_JWT_SECRET`| JWT secret for token verification (API Settings > JWT Settings).            |
-| `JWT_AUDIENCE`       | Optional JWT audience claim. Leave empty to skip audience verification.     |
-| `GROQ_API_KEY`       | API key from the Groq console.                                              |
+- `GET /health` checks the backend.
+- `WS /ws/audio` accepts 16-bit, mono, 16 kHz PCM audio. Send `{"event":"end"}` when you stop. The backend sends the transcript in its response.
 
-### Frontend Configuration
+## Tests
 
-Backend URLs are set at build time via Dart defines:
-
-| Define              | Default                          | Description                        |
-| ------------------- | -------------------------------- | ---------------------------------- |
-| `BACKEND_BASE_URL`  | `http://10.0.2.2:8000`          | REST API base URL                  |
-| `BACKEND_WS_URL`    | `ws://10.0.2.2:8000/ws/audio`   | WebSocket URL for audio streaming  |
-
-### External Service Setup
-
-**Supabase** -- Create a project at [supabase.com](https://supabase.com). Copy the project URL, anon key, JWT secret, and database connection string into `.env`.
-
-**Groq** -- Create an account at [console.groq.com](https://console.groq.com). Generate an API key and add it to `.env`.
-
-## API Reference
-
-### Health Check
-
-```
-GET /health
-```
-
-Returns `{"status": "ok"}`.
-
-### Authentication
-
-| Method | Endpoint         | Description                  | Auth Required |
-| ------ | ---------------- | ---------------------------- | ------------- |
-| POST   | `/auth/signup`   | Register a new user          | No            |
-| POST   | `/auth/login`    | Authenticate an existing user| No            |
-| POST   | `/auth/refresh`  | Refresh an expired token     | No            |
-| GET    | `/auth/whoami`   | Get current user info        | Yes           |
-
-**Request body** (signup and login):
-
-```json
-{
-  "email": "user@example.com",
-  "password": "securepassword"
-}
-```
-
-**Response** (signup and login):
-
-```json
-{
-  "access_token": "eyJ...",
-  "refresh_token": "eyJ...",
-  "token_type": "bearer",
-  "expires_in": 3600,
-  "user_id": "uuid",
-  "email": "user@example.com"
-}
-```
-
-### Transcripts
-
-| Method | Endpoint                    | Description                 | Auth Required |
-| ------ | --------------------------- | --------------------------- | ------------- |
-| POST   | `/transcripts/`             | Save a new transcript       | Yes           |
-| GET    | `/transcripts/history`      | List transcript history     | Yes           |
-| GET    | `/transcripts/{id}`         | Get a single transcript     | Yes           |
-
-**Query parameters** for `/transcripts/history`:
-
-| Parameter | Type    | Default | Description                     |
-| --------- | ------- | ------- | ------------------------------- |
-| `limit`   | integer | 50      | Maximum number of results       |
-| `offset`  | integer | 0       | Number of results to skip       |
-
-### WebSocket Audio Streaming
-
-```
-WS /ws/audio
-```
-
-1. Send raw PCM audio data as binary frames (16-bit, 16 kHz, mono).
-2. Send `{"event": "end"}` when recording is complete.
-3. Receive `{"text": "Transcribed content"}` as the result.
-
-On error, the server responds with `{"error": "Error message"}`.
-
-## Database Schema
-
-```mermaid
-erDiagram
-    users {
-        varchar id PK "Supabase user ID"
-        varchar email UK "User email"
-        boolean is_active "Default: true"
-        boolean is_superuser "Default: false"
-        timestamp created_at "Default: now()"
-    }
-    transcripts {
-        uuid id PK "Auto-generated"
-        varchar user_id FK "References users.id"
-        text text "Transcription content"
-        float confidence "Nullable"
-        float duration_seconds "Nullable"
-        jsonb metadata "Nullable"
-        text audio_url "Nullable"
-        timestamp created_at "Default: now()"
-        timestamp updated_at "Default: now()"
-    }
-    users ||--o{ transcripts : "has many"
-```
-
-## Development
-
-### Running Tests
+For each test block, start a fresh shell at the repository root, then run its commands.
 
 ```bash
-# Backend
-cd backend && pytest
-
-# Frontend
-cd frontend-app/flutter_app && flutter test
+cd backend
+uv run --no-sync pytest
 ```
 
-### Code Style
-
 ```bash
-# Backend
-black app/
-isort app/
-mypy app/
-
-# Frontend
-flutter analyze
-dart format lib/
-```
-
-### Production Build
-
-**Backend:**
-
-```bash
-gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
-```
-
-**Frontend:**
-
-```bash
-flutter build apk --release --dart-define=BACKEND_BASE_URL=https://api.production.com
-flutter build ios --release --dart-define=BACKEND_BASE_URL=https://api.production.com
-flutter build web --release --dart-define=BACKEND_BASE_URL=https://api.production.com
+cd frontend-app/flutter_app
+flutter test
 ```
 
 ## License
 
-This project is available under the [MIT License](LICENSE).
+The source README has this statement: “This project is available under the MIT License.” The repository has no `LICENSE` file.
+
+---
+
+<p align="center"><a href="https://github.com/AbhiramVSA/zepp">Source repository</a></p>
