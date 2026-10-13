@@ -7,7 +7,12 @@
 
 <h4 align="center">Record speech in Flutter and get a transcript when you stop.</h4>
 
-<p align="center">FastAPI • Python 3.13+ • Flutter • Dart ^3.10.3</p>
+<p align="center">
+  <img alt="FastAPI backend" src="https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&amp;logoColor=white">
+  <img alt="Python requirement greater than or equal to 3.13" src="https://img.shields.io/badge/Python-%3E%3D3.13-3776AB?logo=python&amp;logoColor=white">
+  <img alt="Flutter client" src="https://img.shields.io/badge/Flutter-client-02569B?logo=flutter&amp;logoColor=white">
+  <img alt="Dart SDK constraint caret 3.10.3" src="https://img.shields.io/badge/Dart-%5E3.10.3-0175C2?logo=dart&amp;logoColor=white">
+</p>
 
 <p align="center"><a href="#key-features">Features</a> • <a href="#how-to-use">Setup</a> • <a href="#license">License</a></p>
 
