@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="assets/zepp-mark.png" alt="Zepp microphone and transcription waveform mark" width="128" />
+  <img src="assets/zepp-mark.png" alt="Zepp microphone and transcription waveform mark" width="200" />
 </p>
 
-# zepp
+<h1 align="center">zepp</h1>
 
-A voice transcription app with a FastAPI backend and Flutter client. The client sends recorded PCM audio over a WebSocket. The backend returns a transcript after the recording ends.
+<p align="center">A voice transcription app with a FastAPI backend and Flutter client. The client sends recorded PCM audio over a WebSocket. The backend returns a transcript after the recording ends.</p>
 
 <p align="center">
   <a href="#features">Features</a> ·
