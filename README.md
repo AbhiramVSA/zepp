@@ -1,6 +1,19 @@
+<p align="center">
+  <img src="assets/zepp-mark.png" alt="Zepp microphone and transcription waveform mark" width="128" />
+</p>
+
 # zepp
 
 A full-stack voice transcription application that captures audio and converts speech to text in real time. Built with a FastAPI backend and Flutter frontend, it provides user authentication, persistent transcript history, and cross-platform support.
+
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#installation">Setup</a> ·
+  <a href="#api-reference">API</a> ·
+  <a href="#development">Development</a> ·
+  <a href="#license">License</a>
+</p>
 
 ## Features
 
