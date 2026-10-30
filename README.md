@@ -363,4 +363,6 @@ flutter build ios --release --dart-define=BACKEND_BASE_URL=https://api.productio
 
 ## License
 
-This project is available under the [MIT License](LICENSE).
+This project is available under the MIT License.
+
+This branch does not contain a separate `LICENSE` file.
