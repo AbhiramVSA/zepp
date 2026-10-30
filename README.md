@@ -4,7 +4,7 @@
 
 # zepp
 
-A full-stack voice transcription application that captures audio and converts speech to text in real time. Built with a FastAPI backend and Flutter frontend, it provides user authentication, persistent transcript history, and cross-platform support.
+A voice transcription app with a FastAPI backend and Flutter client. The client sends recorded PCM audio over a WebSocket. The backend returns a transcript after the recording ends.
 
 <p align="center">
   <a href="#features">Features</a> ·
@@ -17,12 +17,11 @@ A full-stack voice transcription application that captures audio and converts sp
 
 ## Features
 
-- **Real-time voice transcription** -- Stream audio from the device microphone and receive instant text output via the Whisper large-v3-turbo model on Groq.
+- **Audio transcription** -- Send PCM audio to the backend. It requests a transcript from Groq Whisper after the client sends an `end` event.
 - **User authentication** -- Signup, login, and session management powered by Supabase Auth with JWT tokens.
 - **Transcript history** -- Browse, search, and manage all past transcriptions with offline caching.
 - **Offline support** -- Two-tier cache (memory + SQLite) with optimistic writes and background sync queue.
 - **Theming** -- Toggle between dark and light modes.
-- **Cross-platform** -- Supports Android, iOS, Web, Windows, macOS, and Linux.
 
 ## Architecture
 
@@ -30,7 +29,7 @@ A full-stack voice transcription application that captures audio and converts sp
 
 ```mermaid
 graph LR
-    A[Flutter App] -- "PCM audio (WebSocket)" --> B[FastAPI Backend]
+    A[Flutter App] -- "PCM audio chunks (WebSocket)" --> B[FastAPI Backend]
     B -- "Transcription result" --> A
     B -- "Whisper API (HTTPS)" --> C[Groq API]
     C -- "Text result" --> B
@@ -42,12 +41,12 @@ graph LR
 ### Audio Transcription Flow
 
 1. The Flutter app captures audio using the device microphone (PCM 16-bit, 16 kHz, mono).
-2. Audio chunks stream in real time over a WebSocket connection to the `/ws/audio` endpoint.
+2. The client sends PCM audio chunks to the `/ws/audio` endpoint while the user records.
 3. The backend buffers incoming chunks until it receives an `end` event.
 4. Raw PCM audio is converted to WAV format with appropriate headers.
 5. The WAV file is sent to the Groq API using the Whisper transcription model.
 6. The transcription result is returned to the client over the same WebSocket.
-7. If the user is authenticated, the transcript is automatically persisted to the database.
+7. The client sends the returned text to the transcript REST API when the user is authenticated.
 
 ### Authentication Flow
 
@@ -77,8 +76,8 @@ graph LR
 
 | Component        | Technology                    |
 | ---------------- | ----------------------------- |
-| Framework        | Flutter 3.10+                 |
-| Language         | Dart                          |
+| Framework        | Flutter SDK with Dart 3.10.3 or higher |
+| Language         | Dart 3.10.3 or higher         |
 | State Management | Provider                      |
 | Audio Recording  | flutter_sound                 |
 | WebSocket        | web_socket_channel            |
@@ -139,7 +138,7 @@ zepp-app/
 
 ### Frontend
 
-- Flutter SDK 3.10.3 or higher
+- A Flutter SDK that supplies Dart 3.10.3 or higher
 - Android Studio or Xcode (for mobile development)
 - A physical device or emulator
 
@@ -360,7 +359,6 @@ gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```bash
 flutter build apk --release --dart-define=BACKEND_BASE_URL=https://api.production.com
 flutter build ios --release --dart-define=BACKEND_BASE_URL=https://api.production.com
-flutter build web --release --dart-define=BACKEND_BASE_URL=https://api.production.com
 ```
 
 ## License
